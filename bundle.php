@@ -1,7 +1,7 @@
 <?php
 return array(
   'htmlki' => array(
-    // If autostarted HTMLki templates will beautomatically handled. Otherwise
+    // If autostarted HTMLki templates will be automatically handled. Otherwise
     // you need to set up view listeners or call LHTMLkiListener::attach() manually.
     'auto' => true,
 
