@@ -2,7 +2,7 @@
 
 **HTMLki** takes a non-mainstream approach. Unlike inventing yet another PHP or Mustache it imbues old good HTML with new features - loops, variables, localization, custom tags and more without breaking its original clean form.
 
-```HTML
+```
   <ul $menu>
     <li "$classes">
       <img $icon src=$icon>
@@ -45,19 +45,20 @@ You might also be interested in Laravel integration section below.
 HTMLki compiles into valid PHP code and thus has very small templating overhead. Any output is HTML-escaped **by default** so there's little chance of XSS.
 
 HTMLki imbues HTML with:
-  * [loops and conditions](http://proger.i-forge.net/HTMLki/SZS#loops) - like in the above example: `<ul $list>` or `<if $a == 3>`
-  * [attribute magic](http://proger.i-forge.net/HTMLki/SZS#attr) - automatic expansion of `<form file>` into `<form enctype="multipart/form-data">`, `<div "span-6">` into `<div class="span-6">` and more
-  * [tag magic](http://proger.i-forge.net/HTMLki/SZS#tags)
-    # shortcuts (`<radio>` into `<input type="radio">`)
-    # multitags (`<thead/tr>` into `<thead><tr>`)
-    # singletags (`<textarea />` into `<textarea></textarea>`)
-    # and more
-  * [language lines](http://proger.i-forge.net/HTMLki/SZS#language) - simply text wrapped in double quotes: `<b>"Hello!"</b>`
-  * [expressions and variables](http://proger.i-forge.net/HTMLki/SZS#brackets) - like `{ date('d.m.y') }`
-  * [PHP code](http://proger.i-forge.net/HTMLki/SZS#php) - just as you guess: `(php)<?='string'?>` - short PHP tags expanded automatically so you don't have to care about `php.ini` settings
-  * [function-tags](http://proger.i-forge.net/HTMLki/SZS#funcs) - in form of custom tags like `<include>`
-  * most constructs can be escaped, such as `""Not a language."`, `{{ not_an_expr }` and `$$notAVar`.
-  * this list is not complete - refer to [Syntax](http://proger.i-forge.net/HTMLki/SZS#syntax) for all enhancements
+
+* [loops and conditions](http://proger.i-forge.net/HTMLki/SZS#loops) - like in the above example: `<ul $list>` or `<if $a == 3>`
+* [attribute magic](http://proger.i-forge.net/HTMLki/SZS#attr) - automatic expansion of `<form file>` into `<form enctype="multipart/form-data">`, `<div "span-6">` into `<div class="span-6">` and more
+* [tag magic](http://proger.i-forge.net/HTMLki/SZS#tags)
+  * shortcuts (`<radio>` into `<input type="radio">`)
+  * multitags (`<thead/tr>` into `<thead><tr>`)
+  * singletags (`<textarea />` into `<textarea></textarea>`)
+  * and more
+* [language lines](http://proger.i-forge.net/HTMLki/SZS#language) - simply text wrapped in double quotes: `<b>"Hello!"</b>`
+* [expressions and variables](http://proger.i-forge.net/HTMLki/SZS#brackets) - like `{ date('d.m.y') }`
+* [PHP code](http://proger.i-forge.net/HTMLki/SZS#php) - just as you guess: `(php)<?='string'?>` - short PHP tags expanded automatically so you don't have to care about `php.ini` settings
+* [function-tags](http://proger.i-forge.net/HTMLki/SZS#funcs) - in form of custom tags like `<include>`
+* most constructs can be escaped, such as `""Not a language."`, `{{ not_an_expr }` and `$$notAVar`.
+* this list is not complete - refer to [Syntax](http://proger.i-forge.net/HTMLki/SZS#syntax) for all enhancements
 
 The above doesn't require any additional integration code. However, if you can blossom HTMLki to the fullest by doing custom filtering on tag attributes and tag themselves.
 
@@ -82,7 +83,7 @@ Make sure HTMLki bundle is started or this function won't be available.
 ### Last input values
 Last input values are automatically inserted unless there's an explicit `<input value="x">`.
 
-```HTML
+```
   <form "go">
     <text "login">
     <password "password" value="">
@@ -93,7 +94,7 @@ Last input values are automatically inserted unless there's an explicit `<input 
 After this form is submitted `login` and `remember` fields will have the value/check state as on the previous page while `password` will always be blank. This works for `input` and `textarea% tags.
 
 The **default** attribute can be used to specify non-overriding default value that's replaced by last input when it exists. It's similar to HTML 5's **placeholder** but acts as a normal value. For `<textarea>` it's named **defaulting**:
-```HTML
+```
   <text "author" default=Anonymous>
 
   <textarea defaulting>This text won't be replaced.</textarea>
@@ -101,16 +102,17 @@ The **default** attribute can be used to specify non-overriding default value th
 
 ### Expansion of action and href
 **action** and **href** attributes are automatically expanded to full URL using these simple rules:
-  1. If it contains `@` it's **controller action**: `URL::to_action('cart@clear')`
-  1. Otherwise, if a **named route** exists it's used: `URL::to_route('contacts')`
-  1. Finally, it's resolved as **normal URL**, either relative or absolute: `URL::to('normal/page?goes=here')`
+
+* If it contains `@` it's **controller action**: `URL::to_action('cart@clear')`
+* Otherwise, if a **named route** exists it's used: `URL::to_route('contacts')`
+* Finally, it's resolved as **normal URL**, either relative or absolute: `URL::to('normal/page?goes=here')`
 
 if URL starts with `mailto:` it's not processed.
 
 If URL contains a query string it's appended to the expanded URL: `<a "user@login?login=$login">` becomes `<a href="/store/user/login?login=test">`.
 
 Additionally, an URL can start with **plus sign (`+`)** - in this case current query variables are retained. If URL specifies a query string its variables override request's. For example, this template will produce different links depending on the page we open (such as `goods/show?page=1&sort=price`):
-```HTML
+```
   <a  "goods@show?page=2">Next page</a>
   <!-- <a href="goods/show?page=2"> -->
   <a "+goods@show?page=2">Next page</a> retaining view options
@@ -120,12 +122,12 @@ Additionally, an URL can start with **plus sign (`+`)** - in this case current q
 #### `<form>`'s action
 In addition to the above expansion form's **action** is allowed to contain query variables which are removed and instead placed as a set of `<input type="hidden">` immediately after the opening tag.
 
-```HTML
+```
   <form "cart@put?item[$id]=$qty">
 ```
 
 Becomes:
-```HTML
+```
   <form action="cart/put">
     <input type="hidden" name="item[75]" value="1">
 ```
@@ -139,7 +141,7 @@ For example: `<img "admin::logo.png">` becomes `<img src="public/bundles/admin/l
 `<errors>` tag is used to insert a list of errors usually produced by a **Validator**. The name of input for which errors are retrieved is given as `<errors "input_name">` - if omitted, last output input will be used or if there's none it's ignored an a warning is emitted (logged by default).
 
 For example:
-```HTML
+```
   <input "login">
   <errors>
   <!-- the same: -->
@@ -147,8 +149,8 @@ For example:
 ```
 
 Produced output (tag name, attributes and item format are customizable through the config):
-```HTML
-  <input type="text name="login">
+```
+  <input type="text" name="login">
 
   <ul class="errors">
     <li>Login must be alphanumeric.</li>
@@ -159,14 +161,14 @@ Produced output (tag name, attributes and item format are customizable through t
 #### `<js>` and `<css>` tag
 `<js>` and `<css>` tags register new assets.
 
-```HTML
+```
   <js "jquery.js" js/jquery-1.9.1.js to=head>
   <css css/botstrap.css>
 ```
 
-  * asset name is optional and is specified as `"name.ext"`
-  * **to** attribute is optional and specifies the container (defaults to `default` - the global container)
-  * path to asset is expanded with `URL::to_asset()` and is the only required attribute
+* asset name is optional and is specified as `"name.ext"`
+* **to** attribute is optional and specifies the container (defaults to `default` - the global container)
+* path to asset is expanded with `URL::to_asset()` and is the only required attribute
 
 The above two tags are equivalents of calling this from your template (or elsewhere):
 ```PHP
@@ -177,11 +179,11 @@ The above two tags are equivalents of calling this from your template (or elsewh
 #### `<csrf>` tag
 `<csrf>` tag lets you insert request token. Variable name can optionally be given as `<csrf "input_var">`.
 
-```HTML
+```
   <csrf>
 ```
 
 Becomes:
-```HTML
+```
   <input type="hidden" name="csrf_token" value="60S9QvppzfWs3PnOBgB81x2nXe5yFwTx9Bm5L8GJ">
 ```
