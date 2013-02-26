@@ -132,12 +132,12 @@ Becomes:
     <input type="hidden" name="item[75]" value="1">
 ```
 
-#### Expansion of src
+### Expansion of src
 **src** attribute is expanded as an asset path (`URL::to_asset()`). Additionally, `bundle::` prefix can be present; if not application's asset is assumed.
 
 For example: `<img "admin::logo.png">` becomes `<img src="public/bundles/admin/logo.png">`.
 
-#### `<errors>` tag
+### `<errors>` tag
 `<errors>` tag is used to insert a list of errors usually produced by a **Validator**. The name of input for which errors are retrieved is given as `<errors "input_name">` - if omitted, last output input will be used or if there's none it's ignored an a warning is emitted (logged by default).
 
 For example:
@@ -158,7 +158,7 @@ Produced output (tag name, attributes and item format are customizable through t
   </ul>
 ```
 
-#### `<js>` and `<css>` tag
+### `<js>` and `<css>` tag
 `<js>` and `<css>` tags register new assets.
 
 ```
@@ -176,7 +176,7 @@ The above two tags are equivalents of calling this from your template (or elsewh
   Asset::style('bootstrap.css', 'css/bootstrap.css');
 ```
 
-#### `<csrf>` tag
+### `<csrf>` tag
 `<csrf>` tag lets you insert request token. Variable name can optionally be given as `<csrf "input_var">`.
 
 ```
