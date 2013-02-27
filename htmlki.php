@@ -997,7 +997,7 @@ class HTMLkiTemplate extends HTMLkiObject
           }
         }
 
-        call_user_func($vars);
+        call_user_func($callback, $vars);
       }
     }
   }
