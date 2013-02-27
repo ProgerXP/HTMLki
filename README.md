@@ -8,10 +8,15 @@
       <img $icon src=$icon>
       <a "$url" target=$target>$caption</a>
     </li>
-  </ul>
+  </endul>
 ```
 
-That's the loop.
+What we see here is:
+
+* A loop. `<ul>` is only output if there's at least one item in `$menu`
+* An «if» - `<img>` is only output if `$icon` is non-falsy
+* A bunch of attribute magic - `<li "classes">` (`<li class="classes">`), `<a "url">` (`<a href="url">`)
+* Anti-XSS: `$caption` is a variable, **escaped by default**
 
 It has no dependencies and works out of the box in **PHP 5.2 and up** - simply include it and you're ready to go.
 
