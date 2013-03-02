@@ -195,10 +195,16 @@ class LHTMLki extends View implements Countable {
       $query = http_build_query(((array) $query) + ((array) $current), '', '&');
     }
 
-    if (strrchr($url, '@') !== false) {
-      starts_with($url, 'mailto:') or $url = action($url);
+    $slugs = function ($func) use ($url) {
+      $slugs = explode('/', $url);
+      $url = array_shift($slugs);
+      return $func($url, $slugs);
+    };
+
+    if (strrchr($url, '@') !== false or strpos($url, '::')) {
+      starts_with($url, 'mailto:') or $url = $slugs('action');
     } elseif (Router::find($url)) {
-      $url = route($url);
+      $url = $slugs('route');
     } else {
       $url = url($url);
     }

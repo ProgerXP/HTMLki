@@ -114,7 +114,7 @@ The **default** attribute can be used to specify non-overriding default value th
 
 if URL starts with `mailto:` it's not processed.
 
-If URL contains a query string it's appended to the expanded URL: `<a "user@login?login=$login">` becomes `<a href="/store/user/login?login=test">`.
+If URL contains a query string it's appended to the expanded URL: `<a "user@login?login=$login">` becomes `<a href="/store/user/login?login=test">`. The same happens with slugs when added to action or route: `store::goods/5/price` becomes `/store/goods/5/price`. Or, combined: `store::goods/5?sort=price` becomes `/store/goods/5?sort=price`.
 
 Additionally, an URL can start with **plus sign (`+`)** - in this case current query variables are retained. If URL specifies a query string its variables override request's. For example, this template will produce different links depending on the page we open (such as `goods/show?page=1&sort=price`):
 ```
