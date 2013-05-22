@@ -5,6 +5,13 @@
   http://proger.i-forge.net/HTMLki/SZS
 */
 
+$classes =array_get(include __DIR__.'/bundle.php', 'htmlki.autoloads.map');
+
+foreach ($classes as &$class) {
+  $class = str_replace('(:bundle)', Bundle::path('htmlki'), $class);
+}
+
+Autoloader::map($classes);
 Bundle::option('htmlki', 'auto') and LHTMLkiListener::attach();
 
 function overrideHTMLki($path, array $options) {

@@ -129,8 +129,9 @@ class LHTMLki extends View implements Countable {
 
     $config->language = function ($name) { return __($name)->get(); };
 
-    $config->template = function ($name, HTMLkiTemplate $parent) use ($self) {
-      return View::make($name)->with($call->vars + $self->vars);
+    $config->template = function ($name, HTMLkiTemplate $parent, TagCall $call)
+                             use ($self) {
+      return new LHTMLkiInclude($name, $call->vars + $self->data);
     };
 
     $config->listVariable = array($this, 'listVariable');
@@ -320,17 +321,27 @@ class LHTMLki extends View implements Countable {
   }
 
   // <form "page?hidden=in&puts=">  <form action="the?same=">
+  // Also handles non-common methods (other than GET and POST).
   function tag_form($call) {
+    $hidden = '';
+
     if ($action = &$call->defaults[0] or $action = &$call->attributes['action']) {
       @list($action, $query) = explode('?', $action, 2);
       $call->defaults[0] or $action = array('', $action);
-      $hidden = static::htmlInputs($query, '', $this->config()->xhtml);
+      $hidden .= static::htmlInputs($query, '', $this->config()->xhtml);
     } else {
       unset($call->attributes['action']);
     }
 
+    $method = array_get($call->attributes(), 'method');
+
+    if ($method and !in_array(strtolower($method), array('get', 'post'))) {
+      $call->attributes['method'] = array('', '', 'POST');
+      $hidden .= Form::hidden(Request::spoofer, $method);
+    }
+
     $result = $call->handle();
-    if (isset($hidden)) { echo $hidden; }
+    echo $hidden;
     return $result;
   }
 
@@ -405,5 +416,22 @@ class LHTMLki extends View implements Countable {
     } else {
       return true;
     }
+  }
+}
+
+// Mediator class for HTMLkiTemplate->tag_include()'s looping version (<include $var>).
+class LHTMLkiInclude {
+  public $view;
+
+  function __construct($view, array $vars) {
+    $this->view = View::make($view)->with($vars);
+  }
+
+  function add(array $vars) {
+    return $this->view->with($vars);
+  }
+
+  function render() {
+    return $this->view->render();
   }
 }

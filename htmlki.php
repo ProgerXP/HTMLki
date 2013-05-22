@@ -375,8 +375,8 @@ class HTMLkiTagCall {
 
     $result = $config->defaultsOf($this->tag);
 
-    $values = $this->values;
-    foreach ($values as &$value) { $value = $value[1]; }
+    $values = $this->tpl->evaluateWrapped($this->vars, $this->values);
+    foreach ($values as &$value) { $value = array_pop($value); }
 
     foreach ($this->defaults as $str) {
       $default = array_shift($defaults);
@@ -710,7 +710,7 @@ class HTMLkiTemplate extends HTMLkiObject
     if ($params !== '') {
       $name = HTMLkiCompiler::wrappedRegExp();
       $regexp = "~(\s|^)
-                    (?: ($name|[^\s=]+) =)? ($name|[^\s]+)
+                    (?: ($name|[^\s=]*) =)? ($name|[^\s]+)
                   (?=\s|$)~x".$this->config->regexpMode;
 
       if (!preg_match_all($regexp, $params, $matches, PREG_SET_ORDER)) {
@@ -1082,11 +1082,9 @@ class HTMLkiTemplate extends HTMLkiObject
       $this->warning("Cannot <include> a template - no name given.");
     } else {
       $values = $this->evaluateWrapped($call->vars, $call->values);
-      $file = call_user_func($func, $call->values[0][1], $this, $call);
+      $tpl = $file = call_user_func($func, $call->values[0][1], $this, $call);
 
-      if ($file instanceof self) {
-        $tpl = $file;
-      } elseif (is_string($file)) {
+      if (is_string($tpl)) {
         $config = $this->config->inheritConfig ? 'config' : 'originalConfig';
 
         $tpl = new static($this->$config());
@@ -1126,7 +1124,9 @@ class HTMLkiTemplate extends HTMLkiObject
     $vars = $call->vars + $this->evaluateWrapped($call->vars, $call->attributes);
 
     foreach ($call->defaults as $lang) {
-      if ($values = $call->values) {
+      $values = $this->evaluateWrapped($call->vars, $call->values);
+
+      if ($values) {
         foreach ($values as &$value) { $value = array_pop($value); }
         $values = array_combine($this->placeholders($values), $values);
       }
@@ -1154,6 +1154,10 @@ class HTMLkiTemplate extends HTMLkiObject
   protected $regularTagSingleLoopCall;
   function regularTagSingleLoop($vars)  {
     $call = clone $this->regularTagSingleLoopCall;
+    // unlike other loop calbacks <single $list /> doesn't return to the view
+    // where extract() adds iteration variables to common pool; this means we
+    // should add already defined variables in the template's scope manually:
+    $vars += $call->vars;
 
     foreach ($call->defaults as &$s) {
       $s = $this->evaluateWrapped($vars, '', $s);
@@ -1220,6 +1224,7 @@ class HTMLkiCompiler extends HTMLkiObject {
   static function wrappedRegExp() {
     return static::quotedRegExp().'|\{[^}\r\n]+}';
   }
+
   function __construct(HTMLkiConfig $config, $str) {
     $this->config = $config;
     $this->str = $str;
@@ -1257,12 +1262,16 @@ class HTMLkiCompiler extends HTMLkiObject {
     $str = strtr($str, $this->raw);
 
     if ($this->config->addLineBreaks) {
-      $feeds = array("?>\n" => ";echo \"\\n\"?>\n",
-                     "?>\r\n" => ";echo \"\\r\n\"?>\r\n");
-      $str = strtr($str, $feeds);
+      $regexp = '~^(.+(?:Tag|>lang)\(.+?)(\?>)(\r?\n)~m'.$this->config->regexpMode;
+      $str = preg_replace_callback($regexp, array($this, 'postCompileReplacer'), $str);
     }
 
     return $this->config->compiledHeader.$str.$this->config->compiledFooter;
+  }
+
+  function postCompileReplacer($match) {
+    list(, $code, $ending, $eoln) = $match;
+    return $code.'; echo "'.addcslashes($eoln, "\r\n").'"'.$ending.$eoln;
   }
 
   //= string masked $str
