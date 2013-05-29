@@ -127,7 +127,7 @@ class LHTMLkiListener {
     if ($factory instanceof Closure) {
       $view = $factory($view, $config);
     } elseif (is_string($factory) and class_exists($factory)) {
-      $view = $factory::make('path: '.$view->path, $view->data);
+      $view = $factory::make('path: '.$view->path, $view->data());
 
       foreach ($config as $name => $value) {
         $view->config()->$name = $value;
@@ -137,6 +137,7 @@ class LHTMLkiListener {
                           " to be a string (defined class name) or a closure.");
     }
 
+    $setup = &$config['setup'] and call_user_func($setup, $view);
     return $view;
   }
 }

@@ -10,6 +10,9 @@ return array(
   //   merged config values like those specified in this file.
   'factory'               => 'LHTMLki',
 
+  // Callable (Laravel\View $view) called after creating a 'factory' object.
+  'setup'                 => null,
+
   // Compiled PHP views are placed in storage/views, their name being the view's
   // original path MD5 hash - or that path in slug form. This setting sets the
   // maximum name length before it's hashed. Useful to set to higher value in
