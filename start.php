@@ -15,7 +15,7 @@ Autoloader::map($classes);
 Bundle::option('htmlki', 'auto') and LHTMLkiListener::attach();
 
 function overrideHTMLki($path, array $options) {
-  return LHTMLkiListener($path, $options);
+  return LHTMLkiListener::override($path, $options);
 }
 
 // Mediator hooking Laravel View events and creating LHTMLki views according
@@ -28,7 +28,10 @@ class LHTMLkiListener {
   //  as described in the config file.
   //* $options hash - config values to override, such as 'charset' => 'cp1250'.
   static function override($path, array $options) {
-    Bundle::set('htmlki.override.'.str_replace('.', '/', $path), $options);
+    Config::load('htmlki', 'htmlki');
+    $path = str_replace('.', '/', $path);
+    // Config::set() messes up if key contains multiple '::'.
+    Config::$items['htmlki']['htmlki']['override'][$path] = $options;
     static::refresh();
   }
 
@@ -90,7 +93,12 @@ class LHTMLkiListener {
 
       foreach ((array) Config::get('htmlki::htmlki.override') as $base => $options) {
         if ($base !== '') {
-          list($bundle, $base) = Bundle::parse($base);
+          if (strpos($base, '::') === false) {
+            $bundle = '';
+          } else {
+            list($bundle, $base) = explode('::', $base, 2);
+          }
+
           $bundle === '' and $bundle = DEFAULT_BUNDLE;
           if (!Bundle::exists($bundle)) { continue; }
           $base = Bundle::path($bundle).'views/'.trim($base, '\\/').'/';

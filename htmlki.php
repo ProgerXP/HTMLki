@@ -161,7 +161,7 @@ class HTMLkiConfig {
   //   array( 'tag'[, 'attr' => 'v a l u e'[, 'a2' => 'v2', ...]] ).
   //   Note that if 'tag' starts with a capital letter or is an object
   //   this is considered a callable (see below).
-  // * string => callable - function (HTMLkiTagCall $tag)
+  // * string => callable - function (HTMLkiTagCall $tag, HTMLkiTemplate $this)
   //
   // Aliases are resolved recursively; attributes are set after each iteration
   // so you can create multiple aliases and their attributes will be set
@@ -827,7 +827,7 @@ class HTMLkiTemplate extends HTMLkiObject
       $call->attributes = $this->evaluateWrapped($call->vars, $call->attributes);
       $call->values = $this->evaluateWrapped($call->vars, $call->values);
 
-      $result = call_user_func($handler, $call);
+      $result = call_user_func($handler, $call, $this);
     }
 
     return is_array($result) ? $result : array();

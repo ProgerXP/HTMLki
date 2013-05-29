@@ -25,6 +25,11 @@ return array(
   'errorsAttributes'      => array('class' => 'errors'),
   'errorsItem'            => '<li>:message</li>',
 
+  // Specifies list of Input variables that, if present, will be prepended to
+  // each <form> being output as <input type="hidden">. Can be single value
+  // (converted to array), array or Closure (LHTMLki $view, HTMLkiTagCall $call).
+  'stickyFormHiddens'     => array(),
+
   // Standard HTMLki settings can go here as well. Below are some of them.
   //
   // HTMLki does a very quick whitespace compression so the HTML it generates gets

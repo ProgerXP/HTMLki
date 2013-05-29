@@ -55,7 +55,7 @@ class LHTMLki extends View implements Countable {
     return $this;
   }
 
-  // Counts bound variables. Used like count($view).
+  // Counts bound variables excluding shared ones. Used like count($view).
   function count() {
     return count($this->data);
   }
@@ -64,7 +64,7 @@ class LHTMLki extends View implements Countable {
   //= str
   function get() {
     $ki = $this->ki();
-    $ki->vars($this->data);
+    $ki->vars($this->data + \View::$shared);
     return $ki->render();
   }
 
@@ -110,30 +110,10 @@ class LHTMLki extends View implements Countable {
   //= HTMLkiConfig
   protected function makeConfig() {
     $config = clone (HTMLki::config('laravel') ?: HTMLki::config());
-    $self = $this;
 
-    $config->warning = function ($message, $obj) use ($self) {
-      $title = is_object($obj) ? get_class($obj) : $obj;
-      starts_with($title, 'HTMLki') and $title = 'HTMLki '.substr($title, 6);
-
-      if ($obj instanceof HTMLkiTemplate) {
-        $obj->isFile() and $title .= ' ['.$obj->loadedFile().']';
-      }
-
-      Log::warn($full = "$title: $message");
-
-      if ($self->config()->failOnWarning) {
-        throw new HTMLkiError($obj, $full);
-      }
-    };
-
-    $config->language = function ($name) { return __($name)->get(); };
-
-    $config->template = function ($name, HTMLkiTemplate $parent, TagCall $call)
-                             use ($self) {
-      return new LHTMLkiInclude($name, $call->vars + $self->data);
-    };
-
+    $config->warning = array($this, 'warning');
+    $config->language = array($this, 'language');
+    $config->template = array($this, 'template');
     $config->listVariable = array($this, 'listVariable');
 
     foreach (get_class_methods($this) as $item) {
@@ -152,6 +132,29 @@ class LHTMLki extends View implements Countable {
     }
 
     return $config;
+  }
+
+  function warning($message, $obj) {
+    $title = is_object($obj) ? get_class($obj) : $obj;
+    starts_with($title, 'HTMLki') and $title = 'HTMLki '.substr($title, 6);
+
+    if ($obj instanceof HTMLkiTemplate) {
+      $obj->isFile() and $title .= ' ['.$obj->loadedFile().']';
+    }
+
+    Log::warn($full = "$title: $message");
+
+    if ($this->config()->failOnWarning) {
+      throw new HTMLkiError($obj, $full);
+    }
+  }
+
+  function language($name, $format = array()) {
+    return Lang::line($name, $format)->get();
+  }
+
+  function template($name, HTMLkiTemplate $parent, TagCall $call) {
+    return new LHTMLkiInclude($name, $call->vars + $this->data);
   }
 
   // HTMLki calls this function when it renders <tag $listVar> construct.
@@ -202,9 +205,9 @@ class LHTMLki extends View implements Countable {
       return $func($url, $slugs);
     };
 
-    if (strrchr($url, '@') !== false or strpos($url, '::')) {
+    if (strrchr($url, '@') !== false) {
       starts_with($url, 'mailto:') or $url = $slugs('action');
-    } elseif (Router::find($url)) {
+    } elseif (Router::find(strtok($url, '/'))) {
       $url = $slugs('route');
     } else {
       $url = url($url);
@@ -215,7 +218,10 @@ class LHTMLki extends View implements Countable {
   }
 
   function attribute_src($value) {
-    if (strpos($value, '::')) {
+    if (substr($value, 0, 4) === 'cid:') {
+      // prefix used to refer to related attachments in MIME messages.
+      return $value;
+    } elseif (strpos($value, '::')) {
       list($bundle, $value) = explode('::', $value, 2);
       $value = "bundles/$bundle/".ltrim($value, '/');
     }
@@ -321,14 +327,16 @@ class LHTMLki extends View implements Countable {
   }
 
   // <form "page?hidden=in&puts=">  <form action="the?same=">
-  // Also handles non-common methods (other than GET and POST).
   function tag_form($call) {
-    $hidden = '';
+    $fields = $this->config()->stickyFormHiddens;
+    ($fields instanceof Closure) and $fields = $fields($this, $call);
+    $hidden = Input::only((array) $fields);
 
     if ($action = &$call->defaults[0] or $action = &$call->attributes['action']) {
       @list($action, $query) = explode('?', $action, 2);
       $call->defaults[0] or $action = array('', $action);
-      $hidden .= static::htmlInputs($query, '', $this->config()->xhtml);
+      parse_str($query, $query);
+      $hidden = array_merge($hidden, $query);
     } else {
       unset($call->attributes['action']);
     }
@@ -341,7 +349,7 @@ class LHTMLki extends View implements Countable {
     }
 
     $result = $call->handle();
-    echo $hidden;
+    $hidden and print static::htmlInputs($hidden, '', $this->config()->xhtml);
     return $result;
   }
 
@@ -386,7 +394,7 @@ class LHTMLki extends View implements Countable {
 
   // Fetches previously entered input value from Laravel.
   protected function inputValue($name) {
-    return Input::get($name, function () use ($name) { Input::old($name); });
+    return Input::get($name, function () use ($name) { return Input::old($name); });
   }
 
   // Remembers last input used in the template so later tags (like <errors>)
@@ -401,6 +409,16 @@ class LHTMLki extends View implements Countable {
           unset($call->attributes['novalidate']);
         } else {
           $name = strtr($name, array('[' => '.', ']' => ''));
+
+          if ($this['errors']->has($name)) {
+            $class = &$call->attributes['class'];
+            $class or $class = array('', '', '');
+
+            if (!str_contains(" $class[2] ", ' invalid ')) {
+              $class[2] = trim("$class[2] invalid");
+            }
+          }
+
           return $this->lastInput = $name;
         }
       }
