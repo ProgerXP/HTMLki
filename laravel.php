@@ -17,6 +17,8 @@ class LHTMLki extends View implements Countable {
   // <input> 'type' values which retain last user input. This doesn't include
   // 'checked' and so on as their values are programmer's-defined.
   static $userValueInputs = array('text', 'password');
+  // <input> 'type' values that have boolean checked="checked" attribute.
+  static $checkables = array('checkbox', 'radio');
 
   protected $htmlki;                //= null, HTMLkiTemplate
   protected $config;                //= null, HTMLkiConfig
@@ -245,7 +247,7 @@ class LHTMLki extends View implements Countable {
     $this->rememberInput($call);
     $old = $this->oldInput($call);
 
-    if (array_get($call->attributes(), 'type') === 'checkbox') {
+    if (in_array(array_get($call->attributes(), 'type'), static::$checkables)) {
       if ($old) {
         $call->attributes['checked'] = array('', '', 'checked');
       } elseif (isset($old)) {
@@ -368,14 +370,12 @@ class LHTMLki extends View implements Countable {
 
   // Determines an old value for an input (textarea, etc.) field.
   protected function oldInput(TagCall $call) {
-    static $checkables = array('checkbox', 'radio');
-
     $old = null;
     $attr = $call->attributes();
     $name = array_get($attr, 'name', $this->lastInput);
 
     if ($name) {
-      if ($call->tag === 'input' and in_array($attr['type'], $checkables)) {
+      if ($call->tag === 'input' and in_array($attr['type'], static::$checkables)) {
         if (isset($attr['value']) and !isset($attr['checked']) and
             $this->inputValue($name) !== null) {
           $old = trim($this->inputValue($name)) === trim($attr['value']);
