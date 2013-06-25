@@ -303,7 +303,7 @@ class LHTMLki extends View implements Countable {
     if ("$name" === '') {
       $this->ki()->warning('<errors> requires a name attribute unless used'.
                            ' after another input tag.', $this);
-    } elseif ($errors = $this['errors']->get($name, $config->errorsItem)) {
+    } elseif ($errors = $this['errors'] and $errors->get($name, $config->errorsItem)) {
       echo $this->ki()->htmlTag($config->errorsTag, $config->errorsAttributes),
            join($errors), '</', $config->errorsTag, '>';
     }
@@ -347,7 +347,7 @@ class LHTMLki extends View implements Countable {
 
     if ($method and !in_array(strtolower($method), array('get', 'post'))) {
       $call->attributes['method'] = array('', '', 'POST');
-      $hidden .= Form::hidden(Request::spoofer, $method);
+      $hidden[Request::spoofer] = $method;
     }
 
     $result = $call->handle();
@@ -413,7 +413,7 @@ class LHTMLki extends View implements Countable {
         } else {
           $name = strtr($name, array('[' => '.', ']' => ''));
 
-          if ($this['errors']->has($name)) {
+          if ($errors = $this['errors'] and $errors->has($name)) {
             $class = &$call->attributes['class'];
             $class or $class = array('', '', '');
 
