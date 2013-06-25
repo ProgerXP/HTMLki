@@ -376,9 +376,12 @@ class LHTMLki extends View implements Countable {
 
     if ($name) {
       if ($call->tag === 'input' and in_array($attr['type'], static::$checkables)) {
-        if (isset($attr['value']) and !isset($attr['checked']) and
-            $this->inputValue($name) !== null) {
-          $old = trim($this->inputValue($name)) === trim($attr['value']);
+        if (isset($attr['value']) and !isset($attr['checked'])) {
+          $value = $this->inputValue($name);
+
+          if (is_scalar($value)) {
+            $old = trim($this->inputValue($name)) === trim($attr['value']);
+          }
         }
       } elseif ($this->isAnInput($call, static::$userValueInputs) and
                 !isset($attr['value'])) {
