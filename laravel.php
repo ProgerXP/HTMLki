@@ -303,7 +303,7 @@ class LHTMLki extends View implements Countable {
     if ("$name" === '') {
       $this->ki()->warning('<errors> requires a name attribute unless used'.
                            ' after another input tag.', $this);
-    } elseif ($errors = $this['errors'] and $errors->get($name, $config->errorsItem)) {
+    } elseif ($errors = $this['errors'] and $errors = $errors->get($name, $config->errorsItem)) {
       echo $this->ki()->htmlTag($config->errorsTag, $config->errorsAttributes),
            join($errors), '</', $config->errorsTag, '>';
     }
