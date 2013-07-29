@@ -1376,7 +1376,7 @@ class HTMLkiCompiler extends HTMLkiObject {
         } elseif ($value === '') {
           $code = 'ob_start()';
         } else {
-          $code = "$$var = $value";
+          $code = "$$var = ($value)";
         }
       } elseif ($type === '*' and $value !== '') {
         $value = rtrim($value, ';');
