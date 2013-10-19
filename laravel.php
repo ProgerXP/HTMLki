@@ -193,9 +193,10 @@ class LHTMLki extends View implements Countable {
     @list($url, $query) = explode('?', $value, 2);
 
     if ($url and $url[0] === '+') {
-      $url = substr($url, 1);
+      $url = (string) substr($url, 1);
 
-      @list(, $current) = explode('?', URI::full(), 2);
+      @list($fullURL, $current) = explode('?', URI::full(), 2);
+      $url === '' and $url = $fullURL;
       parse_str($current, $current);
       parse_str($query, $query);
       $query = http_build_query(((array) $query) + ((array) $current), '', '&');
