@@ -1081,6 +1081,11 @@ class HTMLkiTemplate extends HTMLkiObject
     } elseif (!$call->values) {
       $this->warning("Cannot <include> a template - no name given.");
     } else {
+      $attributes = $this->evaluateWrapped($call->vars, $call->attributes);
+      foreach ($attributes as $name => &$value) {
+        $call->vars[$name] = array_pop($value);
+      }
+
       $values = $this->evaluateWrapped($call->vars, $call->values);
       $tpl = $file = call_user_func($func, $call->values[0][1], $this, $call);
 
