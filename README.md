@@ -26,6 +26,8 @@ It has no dependencies and works out of the box in **PHP 5.2 and up** - simply i
 
 ## Usage
 
+**Available for Composer** under `proger/htmlki` at [Packagist](https://packagist.org/packages/proger/htmlki).
+
 **Standalone:**
 
 ```PHP

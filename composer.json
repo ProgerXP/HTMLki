@@ -1,0 +1,15 @@
+{
+  "name": "proger/htmlki",
+  "description": "Seamless templating with the HTML spirit. PHP 5.2+.",
+  "keywords": ["html", "template"],
+  "homepage": "https://github.com/ProgerXP/HTMLki",
+  "license": "SAX-PD",
+  "authors": [{
+    "name": "Proger",
+    "email": "proger.xp@gmail.com",
+    "homepage": "http://proger.me"
+  }],
+  "autoload": {
+    "classmap": ["."]
+  }
+}
