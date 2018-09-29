@@ -1,6 +1,6 @@
 <?php namespace HTMLki;
 
-class Template extends Object
+class Template extends Configurable
     implements TemplateEnv, \ArrayAccess, \Countable {
   // Populated when Config->$debugEval is set.
   //= array ('eval_str();', array $vars, Template $tpl, $evalResult, str $output)

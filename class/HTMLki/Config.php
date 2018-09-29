@@ -7,7 +7,7 @@ class Config {
 
   public $regexpMode = 'u';
 
-  //= callable ($msg, Object $issuer)
+  //= callable ($msg, Configurable $issuer)
   public $warning;
 
   // Name of variable referring to Template object (valid PHP identifier).
@@ -109,7 +109,7 @@ class Config {
   public $rubyLike = true;
 
   // If true and current template's config has been changed (see
-  // Object->ownConfig()) included templates will inherit the changed
+  // Configurable->ownConfig()) included templates will inherit the changed
   // copy; otherwise they will get the config the parent template initially had.
   public $inheritConfig = true;
 

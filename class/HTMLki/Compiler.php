@@ -1,6 +1,6 @@
 <?php namespace HTMLki;
 
-class Compiler extends Object {
+class Compiler extends Configurable {
   const Raw0 = "\5\2";
   const Raw1 = "\2\5";
 
