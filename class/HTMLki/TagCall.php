@@ -3,10 +3,10 @@
 class TagCall {
   public $raw;                      //= string raw parameter string
 
-  public $lists = array();          // list variable names without leading '$'
-  public $defaults = array();       // default attributes without wrapping quotes
-  public $attributes = array();     // 'attr' => array('keyWr', 'valueWr', 'value')
-  public $values = array();         //= array of array('valueWr', string)
+  public $lists = [];               // list variable names without leading '$'
+  public $defaults = [];            // default attributes without wrapping quotes
+  public $attributes = [];          // 'attr' => array('keyWr', 'valueWr', 'value')
+  public $values = [];              //= array of array('valueWr', string)
 
   public $tag;                      //= string
   public $isEnd = false;
@@ -20,8 +20,8 @@ class TagCall {
   }
 
   function clear() {
-    $this->lists = $this->defaults = array();
-    $this->attributes = $this->values = array();
+    $this->lists = $this->defaults = [];
+    $this->attributes = $this->values = [];
 
     $this->raw = $this->tag = null;
     $this->isEnd = $this->isSingle = false;
@@ -42,7 +42,7 @@ class TagCall {
   }
 
   function __call($name, $arguments) {
-    return call_user_func_array(array($this->tpl, $name), $arguments);
+    return call_user_func_array([$this->tpl, $name], $arguments);
   }
 
   function attributes($config = null) {

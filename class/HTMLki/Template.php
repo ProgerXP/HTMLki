@@ -9,7 +9,7 @@ class Template extends Object
   protected $str;             //= null, string
   protected $file;            //= null, string
 
-  protected $vars = array();  //= hash
+  protected $vars = [];       //= hash
 
   protected $strParseVars;
   protected $strParseEscapeExpr;
@@ -73,7 +73,7 @@ class Template extends Object
   //? add('varname', 3.14)
   //? add('varname', true)
   //? add('varname')
-  //? add(array('varname' => true))
+  //? add(['varname' => true])
   function add($var, $value = true) {
     if (is_array($var)) {
       $this->vars = $var + $this->vars;
@@ -99,10 +99,10 @@ class Template extends Object
           $toName = null;
         }
       } elseif (is_array($arg)) {
-        $args = array();
+        $args = [];
         foreach ($arg as $var => $value) { array_push($args, $var, $value); }
 
-        call_user_func_array(array($this, __FUNCTION__), $args);
+        call_user_func_array([$this, __FUNCTION__], $args);
       } else {
         $toName = $arg;
       }
@@ -117,7 +117,7 @@ class Template extends Object
   }
 
   function email($email) {
-    $replaces = array('.' => '&#46;', '@' => '&#x40;');
+    $replaces = ['.' => '&#46;', '@' => '&#x40;'];
     return strtr($email, $replaces);
   }
 
@@ -146,7 +146,7 @@ class Template extends Object
     $_buffering_ = ($_debug_ or $this->config->warnOnFalseEval);
 
     if ($_debug_) {
-      static::$lastEval = array($_str_, $_vars_, $this);
+      static::$lastEval = [$_str_, $_vars_, $this];
     }
 
     extract($_vars_, EXTR_SKIP);
@@ -172,7 +172,7 @@ class Template extends Object
 
   // $...    $$...   {...}   {{...
   function parseStr($str, array &$vars, $escapeExpr = false) {
-    $this->strParseValues = array();
+    $this->strParseValues = [];
 
     if (strpbrk($str, '${') !== false) {
       $regexp = Compiler::inlineRegExp().'|'.Compiler::braceRegExp('{', '}');
@@ -180,11 +180,11 @@ class Template extends Object
 
       $this->strParseVars = $vars;
       $this->strParseEscapeExpr = $escapeExpr;
-      $str = preg_replace_callback($regexp, array($this, 'strParser'), $str);
+      $str = preg_replace_callback($regexp, [$this, 'strParser'], $str);
       HTMLki::pcreCheck($str);
     }
 
-    return array($str, $this->strParseValues);
+    return [$str, $this->strParseValues];
   }
 
     function strParser($match) {
@@ -222,12 +222,12 @@ class Template extends Object
     return strtr($str, $values);
   }
 
-  function lang($str, array $vars = array(), $escapeExpr = true) {
+  function lang($str, array $vars = [], $escapeExpr = true) {
     list($str, $values) = $this->parseStr(trim($str), $vars, $escapeExpr);
     return $this->formatLang($str, $values);
   }
 
-  function formatLang($str, array $values = array()) {
+  function formatLang($str, array $values = []) {
     if ($func = $this->config->language) {
       $placeholders = $this->placeholders($values);
 
@@ -296,7 +296,7 @@ class Template extends Object
   function defaultForInput($type) {
     switch ($type) {
     case 'array':
-      return array();
+      return [];
     case 'object':
       return new \stdClass;
     case 'bool':
@@ -393,22 +393,22 @@ class Template extends Object
       }
 
       // <tag x= y=z w>
-      // x=     array('x=', '', '', 'x=')
-      // y=z    array(' y=z', ' ', 'y', 'z')
-      // w      array(' w', ' ', '', 'w')
+      // x=     ['x=', '', '', 'x=']
+      // y=z    [' y=z', ' ', 'y', 'z']
+      // w      [' w', ' ', '', 'w']
       foreach ($matches as $match) {
         list(, , $key, $value) = $match;
         $valueWrapper = $this->wrapperOf($value);
 
         if ($key !== '') {
           $keyWrapper = $this->wrapperOf($key);
-          $call->attributes[$key] = array($keyWrapper, $valueWrapper, $value);
+          $call->attributes[$key] = [$keyWrapper, $valueWrapper, $value];
         } elseif ($value[strlen($value) - 1] === '=') {
           // 'x=' - an attribute with empty value.
           $value = substr($value, 0, -1);
-          $call->attributes[$value] = array('', $valueWrapper, $value);
+          $call->attributes[$value] = ['', $valueWrapper, $value];
         } else {
-          $call->values[] = array($valueWrapper, $value);
+          $call->values[] = [$valueWrapper, $value];
         }
       }
     }
@@ -424,8 +424,8 @@ class Template extends Object
     }
   }
 
-  function setTagAttribute($tag, $key, array $attributes = array()) {
-    $attributes or $attributes = array($key);
+  function setTagAttribute($tag, $key, array $attributes = []) {
+    $attributes or $attributes = [$key];
     $config = $this->ownConfig();
 
     foreach ($attributes as $value) {
@@ -437,7 +437,7 @@ class Template extends Object
     }
   }
 
-  function startTag($tag, $params = '', array $vars = array()) {
+  function startTag($tag, $params = '', array $vars = []) {
     $call = $this->parseParams($params, $vars);
 
     $call->tag = $tag;
@@ -446,7 +446,7 @@ class Template extends Object
     return $this->callTag($call);
   }
 
-  function endTag($tag, $params = '', array $vars = array()) {
+  function endTag($tag, $params = '', array $vars = []) {
     $call = $this->parseParams($params, $vars);
 
     $call->tag = $tag;
@@ -456,7 +456,7 @@ class Template extends Object
     return $this->callTag($call);
   }
 
-  function singleTag($tag, $params = '', array $vars = array()) {
+  function singleTag($tag, $params = '', array $vars = []) {
     $call = $this->parseParams($params, $vars);
 
     $call->tag = $tag;
@@ -512,7 +512,7 @@ class Template extends Object
       $result = call_user_func($handler, $call, $this);
     }
 
-    return is_array($result) ? $result : array();
+    return is_array($result) ? $result : [];
   }
 
   protected function applyCallAliasTo($call, $handler, $params) {
@@ -528,7 +528,7 @@ class Template extends Object
       }
 
       if (!isset($call->attributes[$key])) {
-        $call->attributes[$key] = array('', '', $value);
+        $call->attributes[$key] = ['', '', $value];
       }
     }
   }
@@ -549,7 +549,7 @@ class Template extends Object
     }
   }
 
-  function evalListName($name, array $vars = array()) {
+  function evalListName($name, array $vars = []) {
     $parsed = $this->parseListName($name);
     $parsed[0] = $this->getList($parsed[0], $vars, $parsed[3]);
     return $parsed;
@@ -581,12 +581,12 @@ class Template extends Object
     }
 
     $convertor === '' or $expr = substr($expr, 0, -1);
-    return array(rtrim($expr, ' }'), $prefix, $suffix, $convertor);
+    return [rtrim($expr, ' }'), $prefix, $suffix, $convertor];
   }
 
   // * $name string - an expression; if begins with '$' this list var is
   //   retrieved using Config->listVariable callback.
-  function getList($name, array $vars = array(), $convertor = '') {
+  function getList($name, array $vars = [], $convertor = '') {
     $name = trim($name);
 
     if ($name === '') {
@@ -601,18 +601,18 @@ class Template extends Object
       if (isset($value) and trim($expr) === '') {
         $result = $value;
       } else {
-        $vars += array($var => $value);
+        $vars += [$var => $value];
       }
     }
 
     isset($result) or $result = $this->evaluateStr($name, $vars);
 
     if ($convertor === '?') {
-      return $result ? array(array()) : array();
+      return $result ? [[]] : [];
     } elseif ($result === null or $result === false) {
-      return array();
+      return [];
     } elseif (!is_array($result) and !($result instanceof Traversable)) {
-      return array($result);
+      return [$result];
     } else {
       return $result;
     }

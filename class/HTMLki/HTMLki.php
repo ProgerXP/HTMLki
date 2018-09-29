@@ -7,7 +7,7 @@
 
 class HTMLki {
   static $config;             //= Config set at the bottom of this script
-  static $configs = array();  //= hash of Config
+  static $configs = [];       //= hash of Config
 
   const WARN_COMPILE = 0;
   const WARN_RENDER = 50;
@@ -96,7 +96,7 @@ class HTMLki {
   static function split($separ, $str) {
     $tail = strrchr($str, $separ);
     if ($tail === false) {
-      return array($str, null);
+      return [$str, null];
     } else {
       return explode($separ, $str, 2);
     }

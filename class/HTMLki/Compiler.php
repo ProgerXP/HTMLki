@@ -6,9 +6,9 @@ class Compiler extends Object {
 
   protected $str;               //= string
 
-  protected $raw = array();     //= hash of mask => original
-  protected $rawSrc = array();  //= hash of mask => string replaced in the template
-  protected $nesting = array(); //= array of hash tag=>, isLoopTag=>
+  protected $raw = [];          //= hash of mask => original
+  protected $rawSrc = [];       //= hash of mask => string replaced in the template
+  protected $nesting = [];      //= array of hash tag=>, isLoopTag=>
 
   //= string
   static function braceRegExp($op, $ed = null, $delimiter = '~') {
@@ -144,7 +144,7 @@ class Compiler extends Object {
     if ($grab === true) {
       return $prefix.'get_defined_vars()';
     } elseif ($grab) {
-      $list = array();
+      $list = [];
       foreach ($grab as $name) { $list[] = "'$name'"; }
       return $prefix.'compact('.join(', ', $list).')';
     }
@@ -159,7 +159,7 @@ class Compiler extends Object {
     $regexp .= $this->config->regexpMode;
 
     $method = 'match'.strrchr($method, '_');
-    $result = preg_replace_callback($regexp, array($this, $method), $str);
+    $result = preg_replace_callback($regexp, [$this, $method], $str);
     return HTMLki::pcreCheck($result);
   }
 
@@ -212,7 +212,7 @@ class Compiler extends Object {
         return $this->raw($head.$escape).$body;
       } elseif ($type === '=') {
         if ($tag) {
-          $attributes = array();
+          $attributes = [];
 
           $regexp = '~(\s|^)([a-zA-Z_]\w*)(=(?:"[^"]*"|[^\s]*))?()(?=\s|$)~'.
                     $this->config->regexpMode;
@@ -226,7 +226,7 @@ class Compiler extends Object {
 
           $tag = $this->quote(strtolower( substr($tag, 1) ));
           $attributes = join(', ', $attributes);
-          $code = "\${$self}->setTagAttribute('$tag', '$var', array($attributes))";
+          $code = "\${$self}->setTagAttribute('$tag', '$var', [$attributes])";
         } elseif ($value === '') {
           $code = 'ob_start()';
         } else {
@@ -376,7 +376,7 @@ class Compiler extends Object {
         $self = $this->config->selfVar;
         $func = "\${$self}->$func($tagParam";
 
-        $params = strtr($params, array("\r" => '', "\n" => ' '));
+        $params = strtr($params, ["\r" => '', "\n" => ' ']);
         $params = $this->quote($params);
         $grabVars = $this->grabVarsForTag($tag, $params);
         $func .= ", '$params'$grabVars)";
