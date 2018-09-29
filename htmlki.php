@@ -1,14 +1,8 @@
 <?php
 /*
   HTMLki - seamless templating with the HTML spirit
-  in public domain | by Proger_XP
-  http://proger.i-forge.net/HTMLki/SZS
-
- *** Supports PHP 5.2 and up ***
-
-  Instruction for getting HTMLki work with pre-5.3:
-  1. Replace all '?:' operators with expanded '? <value> :' form.
-  2. Replace all 'static' words with 'self'. In instance methods '$this' can be used.
+  in public domain | by Proger_XP | http://proger.me
+  https://github.com/ProgerXP/HTMLki
 */
 
 HTMLki::$config = new HTMLkiConfig;
@@ -32,14 +26,34 @@ class HTMLkiPcreError extends HTMLkiError {
   }
 }
 
+class HTMLkiInvalidInput extends HTMLkiError {
+  public $variable;
+
+  function __construct($obj, $variable, $what) {
+    $this->variable = $variable;
+    parent::__construct($obj, "Variable $$variable has wrong $what for the template.");
+  }
+}
+
+class HTMLkiNoInput extends HTMLkiInvalidInput {
+  function __construct($obj, $variable) {
+    $this->variable = $variable;
+    HTMLkiError::__construct($obj, "HTMLkiTemplate is missing required variable $$variable.");
+  }
+}
+
 class HTMLki {
   static $config;             //= HTMLkiConfig
   static $configs = array();  //= hash of HTMLkiConfig
 
+  const WARN_COMPILE = 0;
+  const WARN_RENDER = 50;
+  const WARN_TAG = 100;
+
   // function (string $name)                      - return $name
-  // function (string $name, HTMLkiConfig $new)   - set $new to $name and return it
-  // function ('', HTMLkiConfig $new)             - set default config
-  // function (HTMLkiConfig $config)              - return $config
+  // function (string $name, HTMLkiConfig $new)  - set $new to $name and return it
+  // function ('', HTMLkiConfig $new)            - set default config
+  // function (HTMLkiConfig $config)             - return $config
   // function ()                                  - return default config (not its copy)
   static function config($return = null, HTMLkiConfig $new = null) {
     if (is_string($return)) {
@@ -59,6 +73,26 @@ class HTMLki {
   static function compile($str, $config = null) {
     $obj = new HTMLkiCompiler(static::config($config), $str);
     return $obj->compile();
+  }
+
+  //* $file str - path to HTMLki template file.
+  //* $cachePath str - path to a folder where compiled templates are stored.
+  //
+  //= string
+  //
+  //? compileFileCaching('tpl/my.ki.html', 'cache/htmlki/')
+  static function compileFileCaching($file, $cachePath, $config = null) {
+    $hint = strtok(basename($file), '.');
+    $cache = rtrim($cachePath, '\\/')."/$hint-".md5($file).'.php';
+
+    if (!is_file($cache) or filemtime($cache) < filemtime($file)) {
+      $res = static::compileFile($file, $config);
+      is_dir($cachePath) or mkdir($cachePath, 0750, true);
+      file_put_contents($cache, $res, LOCK_EX);
+      return $res;
+    } else {
+      return file_get_contents($cache);
+    }
   }
 
   //= string
@@ -94,6 +128,16 @@ class HTMLki {
       throw new HTMLkiPcreError($code);
     }
   }
+
+  // $separ must be single character.
+  static function split($separ, $str) {
+    $tail = strrchr($str, $separ);
+    if ($tail === false) {
+      return array($str, null);
+    } else {
+      return explode($separ, $str, 2);
+    }
+  }
 }
 
 class HTMLkiConfig {
@@ -106,17 +150,65 @@ class HTMLkiConfig {
   //= callable ($msg, HTMLkiObject $issuer)
   public $warning;
 
+  // Name of variable referring to HTMLkiTemplate object (valid PHP identifier).
+  // Must match on compile and rendering times.
+  public $selfVar = '_ki';
+
   /*-----------------------------------------------------------------------
   | COMPILER-SPECIFIC
   |----------------------------------------------------------------------*/
 
-  public $compilers = array('php', 'varSet', 'tags', 'echo', 'lang', 'varEcho');
+  // Listed here compilers will be called unless also listed in $omitCompilers.
+  public $compilers = array('lineMerge', 'php', 'varSet', 'tags', 'echo',
+                            'lang', 'varEcho');
+
+  // Two options (this and above) exist for easier overriding. Listed here but
+  // not in $compilers cause nothing.
+  //
+  // 'lang' is disabled by default. It treats "quoted" text as language strings.
+  // If enabled be prepared that   This "is" text   would turn into   This is text
+  // (quotes are gone since "is" was "translated" into itself with no $language
+  // callback set). Also controls ""escaping"".
+  public $omitCompilers = array('lang');
+
+  // If enabled tags start <start and end> on different lines are parsed and
+  // merged. If disabled all tags should fit on one line (even if long).
+  // Enabling can interfere with embedded scripts like this:
+  //   if (s.match(/<a /)) { (ln) s += '>'
+  public $multilineTags = false;
 
   public $singleTags = array('area', 'base', 'basefont', 'br', 'col', 'frame',
                              'hr', 'img', 'input', 'link', 'meta', 'param',
                              'lang', 'include');
 
   public $loopTags = array('each', 'if');
+
+  // If true, all tags are always given get_defined_vars(). If false, all tags
+  // receive empty array for vars. Otherwise an array of tag names to receive
+  // all vars while others receive selective vars: <$variable> tags and tags with
+  // { code } always get all vars, tags with $interpolations get only those
+  // $vars, tags with neither get no vars (fastest).
+  public $grabAllVarsTags = array('if', 'include', 'lang');
+
+  // If set no guessing will be done to figure used variables for any expressions
+  // including <tags> (above), "lang" and $>input@vars - they all will receive
+  // full scope.
+  public $grabAllVars = false;
+
+  // Even regular tags (not loops or branches) can return variables to be
+  // extract()'ed into the template scope. However, by default they don't and
+  // putting extract() over each single tag call is performance-unwise. If this
+  // is true, all tags are extracted, otherwise is an array of tag names to
+  // extract. Tags with <t $list>, $loopTags and <$var> tags are always extracted.
+  public $extractTags = array();
+
+  // Format is like $extractTags. Control if tags that are not looping, branching,
+  // shortcut tags (defined in $tags) and have no parameters are output <as> </is>.
+  // If either is enabled you can no more track opening/closing tags with hooks
+  // because they are output as raw text which is good for performance. Precise
+  // tracking only makes sense if using custom tags or other advanced HTMLki stuff.
+  public $rawStartTags = true;
+  public $rawEndTags = true;
 
   public $addLineBreaks = true;
 
@@ -126,9 +218,23 @@ class HTMLkiConfig {
   //= string to end each compiled .php file with
   public $compiledFooter = '';
 
+  // Values must correspond to existing is_XXX() functions.
+  public $typeAliases = array(
+    'boolean' => 'bool', 'num' => 'integer', 'int' => 'integer',
+    'double' => 'float', 'real' => 'float', 'str' => 'string',
+    'hash' => 'array', 'map' => 'array', 'obj' => 'object',
+    'res' => 'resource',
+  );
+
   /*-----------------------------------------------------------------------
   | RENDERING-SPECIFIC
   |----------------------------------------------------------------------*/
+
+  // If true - stores evaluateStr() calls' info in HTMLkiTemplate::$lastEval.
+  // If a callable - gets called after eval() has ran with arguments equal
+  // to $lastEval contents. You can use it to look for "Parse error:"s,
+  // undefined/mistyped variables, etc.
+  public $debugEval = false;
 
   public $xhtml = true;
 
@@ -137,6 +243,10 @@ class HTMLkiConfig {
 
   //= null autodetect from short_open_tag from php.ini, bool
   public $shortPhp = null;
+
+  // If true enables compilation of braceless outer function calls like in Ruby:
+  // { number_format 1.23 }. It shouldn't interfere with normal PHP code.
+  public $rubyLike = true;
 
   // If true and current template's config has been changed (see
   // HTMLkiObject->ownConfig()) included templates will inherit the changed
@@ -148,6 +258,13 @@ class HTMLkiConfig {
 
   //= string appended to the evaluating string expression. See ->compiledFooter.
   public $evalSuffix = '';
+
+  // Prior to PHP 7, syntax errors in eval() cannot be caught; the only indication
+  // is eval() returning false and "Parse error: ..." present in the output.
+  // Both conditions can happen in normal operation so it's unreliable but useful
+  // while debugging. Enabling this will have some performance impact due to
+  // numerous ob_start() calls.
+  public $warnOnFalseEval = false;
 
   // Tag used when tag name is omitted, e.g. <"class"> -> <span "class">.
   // Works for closing tag as well: </> -> </span>.
@@ -168,6 +285,7 @@ class HTMLkiConfig {
   // (later aliases do not override attributes that already exist).
   //
   // Unlisted tags are handled by HTMLkiTemplate or its default tag method.
+  // If $rawStartTags/$rawEndTags are used this setting is used on compile-time.
   public $tags = array(
     'password' => 'input type=password',  'hidden' => 'input type=hidden',
     'file' => 'input type=file',          'check' => 'input type=checkbox',
@@ -214,6 +332,13 @@ class HTMLkiConfig {
     'textarea'  => array('cols' => 50, 'rows' => 5),
   );
 
+  //= hash of array of string attributes to trim and skip if their value is empty
+  public $notEmptyAttributes = array(
+    ''          => array('class'),
+    'input'     => array('placeholder'),
+    'textarea'  => array('placeholder'),
+  );
+
   //= hash of array of string attribute names
   public $flagAttributes = array(
     // for all tags including those listed here:
@@ -247,28 +372,46 @@ class HTMLkiConfig {
   public $shortAttributes = array(
     // for all tags including those listed here (tag-specific ones override these):
     ''          => array(
-      'left' => 'align', 'center' => 'align', 'right' => 'align', 'justify' => 'align',
-      'top' => 'align', 'middle' => 'align', 'bottom' => 'align',
-      'ltr' => 'dir', 'rtl' => 'dir',
+      'left'    => 'align',   'center'  => 'align',   'right'   => 'align',
+      'justify' => 'align',   'top'     => 'align',   'middle'  => 'align',
+      'bottom'  => 'align',   'ltr'     => 'dir',     'rtl'     => 'dir',
     ),
-    'a'         => array('new' => 'target=_blank'),
-    'button'    => array('submit' => 'type', 'reset' => 'type', 'button' => 'type'),
-    'command'   => array('checkbox' => 'type', 'command' => 'type', 'radio' => 'type'),
+    'a'         => array(
+      'new'     => 'target=_blank',
+    ),
+    'button'    => array(
+      'submit'  => 'type',    'reset'   => 'type',    'button'  => 'type',
+    ),
+    'command'   => array(
+      'checkbox' => 'type',   'command' => 'type',    'radio'   => 'type',
+    ),
     'input'     => array(
-      'button' => 'type', 'checkbox' => 'type', 'file' => 'type', 'hidden' => 'type',
-      'image' => 'type', 'password' => 'type', 'radio' => 'type', 'reset' => 'type',
-      'submit' => 'type', 'text' => 'type',
+      'button'  => 'type',    'checkbox' => 'type',   'file'    => 'type',
+      'hidden'  => 'type',    'image'   => 'type',    'password' => 'type',
+      'radio'   => 'type',    'reset'   => 'type',    'submit'  => 'type',
+      'text'    => 'type',    'selectonfocus' => 'onfocus=this.select()',
     ),
-    'keygen'    => array('rsa' => 'keytype', 'dsa' => 'keytype', 'ec' => 'keytype'),
+    'keygen'    => array(
+      'rsa'     => 'keytype', 'dsa'     => 'keytype', 'ec'      => 'keytype',
+    ),
     'form'      => array(
-      'get' => 'method', 'post' => 'method', 'file' => 'enctype=multipart/form-data',
-      'upload' => 'enctype=multipart/form-data',
+      'get'     => 'method',  'post'    => 'method',
+      'file'    => 'enctype=multipart/form-data',
+      'upload'  => 'enctype=multipart/form-data',
       'multipart' => 'enctype=multipart/form-data',
     ),
-    'li'        => array('disc' => 'type', 'square' => 'type', 'circle' => 'type'),
-    'param'     => array('data' => 'valuetype', 'ref' => 'valuetype',
-                         'object' => 'valuetype'),
-    'script'    => array('preserve' => 'xml:space'),
+    'li'        => array(
+      'disc'    => 'type',    'square'  => 'type',    'circle'  => 'type',
+    ),
+    'param'     => array(
+      'data'    => 'valuetype', 'ref'   => 'valuetype', 'object' => 'valuetype',
+    ),
+    'script'    => array(
+      'preserve' => 'xml:space',
+    ),
+    'textarea'  => array(
+      'selectonfocus' => 'onfocus=this.select()',
+    ),
   );
 
   //= hash of hash of callable ($value, HTMLkiTagCall $call)
@@ -285,19 +428,27 @@ class HTMLkiConfig {
   public $listVariable;
 
   function defaultsOf($tag) {
-    return ((array) @$this->defaults[$tag]) + ((array) @$this->defaults['']);
+    return $this->mergedOf($tag, 'defaults');
+  }
+
+  function notEmptyAttributesOf($tag) {
+    return $this->mergedOf($tag, 'notEmptyAttributes');
   }
 
   function flagAttributesOf($tag) {
-    return array_merge((array) @$this->flagAttributes[$tag],
-                       (array) @$this->flagAttributes['']);
+    return $this->mergedOf($tag, 'flagAttributes');
+  }
+
+  protected function mergedOf($tag, $prop) {
+    $tagRef = &$this->{$prop}[$tag];
+    $defRef = &$this->{$prop}[''];
+    return array_merge((array) $tagRef, (array) $defRef);
   }
 
   function defaultAttributesOf($tag) {
-    $attributes = &$this->defaultAttributes[$tag];
-    isset($attributes) or $attributes = &$this->defaultAttributes[''];
-
-    return is_array($attributes) ? $attributes : array();
+    $ref = &$this->defaultAttributes[$tag];
+    isset($ref) or $ref = &$this->defaultAttributes[''];
+    return is_array($ref) ? $ref : array();
   }
 
   function expandAttributeOf($tag, $attr, array &$attributes) {
@@ -306,7 +457,7 @@ class HTMLkiConfig {
     $full or $full = "$attr=$attr";
 
     foreach ((array) $full as $full) {
-      @list($name, $value) = explode('=', $full, 2);
+      list($name, $value) = HTMLki::split('=', $full);
       isset($value) or $value = $attr;
       $attributes[$name] = $value;
     }
@@ -371,12 +522,13 @@ class HTMLkiTagCall {
 
     $attributes = $this->attributes;
     $defaults = $config->defaultAttributesOf($this->tag);
+    $notEmpty = array_flip( $config->notEmptyAttributesOf($this->tag) );
     $flags = array_flip( $config->flagAttributesOf($this->tag) );
 
     $result = $config->defaultsOf($this->tag);
 
     $values = $this->tpl->evaluateWrapped($this->vars, $this->values);
-    foreach ($values as &$value) { $value = array_pop($value); }
+    foreach ($values as &$ref) { $ref = end($ref); }
 
     foreach ($this->defaults as $str) {
       $default = array_shift($defaults);
@@ -394,12 +546,21 @@ class HTMLkiTagCall {
 
     foreach ($attributes as $name => $value) { $result[$name] = $value[2]; }
 
-    foreach ($result as $name => &$value) {
-      $value = $config->callAttributeHookOf($this->tag, $name, $value);
+    // unset() rewinds foreach.
+    $names = array_keys($result);
 
-      if (isset($flags[$name])) {
-        if ($value == true) {
-          $value = $name;
+    foreach ($names as $name) {
+      $ref = &$result[$name];
+      $ref = $config->callAttributeHookOf($this->tag, $name, $ref);
+
+      if (isset($notEmpty[$name])) {
+        $ref = trim($ref);
+        if (strlen($ref) === 0) {
+          unset($result[$name]);
+        }
+      } elseif (isset($flags[$name])) {
+        if ($ref == true) {
+          $ref = $name;
         } else {
           unset($result[$name]);
         }
@@ -455,14 +616,18 @@ class HTMLkiObject {
     throw new HTMLkiError($this, $msg);
   }
 
-  function warning($msg) {
+  function warning($msg, $code = 0) {
     $func = $this->config->warning;
-    $func and call_user_func($func, $msg, $this);
+    $func and call_user_func($func, $msg, $code, $this);
   }
 }
 
 class HTMLkiTemplate extends HTMLkiObject
-                     implements HTMLkiTemplateEnv, ArrayAccess, Countable {
+               implements HTMLkiTemplateEnv, \ArrayAccess, \Countable {
+  // Populated when HTMLkiConfig->$debugEval is set.
+  //= array ('eval_str();', array $vars, HTMLkiTemplate $tpl, $evalResult, str $output)
+  static $lastEval;
+
   protected $str;             //= null, string
   protected $file;            //= null, string
 
@@ -524,9 +689,13 @@ class HTMLkiTemplate extends HTMLkiObject
   }
 
   function get($var) {
-    return @$this->vars[$var];
+    return isset($this->vars[$var]) ? $this->vars[$var] : null;
   }
 
+  //? add('varname', 3.14)
+  //? add('varname', true)
+  //? add('varname')
+  //? add(array('varname' => true))
   function add($var, $value = true) {
     if (is_array($var)) {
       $this->vars = $var + $this->vars;
@@ -579,9 +748,9 @@ class HTMLkiTemplate extends HTMLkiObject
     return $this->evaluate($this->vars);
   }
 
-  protected function evaluate(array $_vars) {
-    extract($_vars, EXTR_SKIP);
-    $_ki = $this;
+  protected function evaluate(array $_vars_) {
+    extract($_vars_, EXTR_SKIP);
+    ${$this->config->selfVar} = $this;
 
     ob_start();
     isset($this->file) ? include($this->file) : eval('?>'.$this->str);
@@ -595,8 +764,32 @@ class HTMLkiTemplate extends HTMLkiObject
       $_str_ = $this->config->evalPrefix.$_str_.$this->config->evalSuffix;
     }
 
+    $_debug_ = $this->config->debugEval;
+    $_buffering_ = ($_debug_ or $this->config->warnOnFalseEval);
+
+    if ($_debug_) {
+      static::$lastEval = array($_str_, $_vars_, $this);
+    }
+
     extract($_vars_, EXTR_SKIP);
-    return eval($_str_);
+    // "Before PHP 7, in this case eval() returned FALSE and execution of the
+    // following code continued normally. It is not possible to catch a parse
+    // error in eval() using set_error_handler()."
+    $_buffering_ and ob_start();
+    $res = eval($_str_);
+    $output = $_buffering_ ? ob_get_flush() : null;
+
+    if ($_debug_) {
+      array_push(static::$lastEval, $res, $output);
+      is_callable($_debug_) and call_user_func_array($_debug_, static::$lastEval);
+    }
+
+    if ($res === false and $this->config->warnOnFalseEval
+        and strpos($output, 'Parse error') !== false) {
+      $this->warning("possible syntax error in eval() code: $_str_", HTMLki::WARN_RENDER + 5);
+    }
+
+    return $res;
   }
 
   // $...    $$...   {...}   {{...
@@ -674,6 +867,102 @@ class HTMLkiTemplate extends HTMLkiObject
     return $result;
   }
 
+  // null $default assumes that $name is required. '' $default sets it
+  // according to given $type (blank string for 'string', empty array for 'array',
+  // null for '' (any), etc.).
+  function input($vars, $name, &$value, $type, $coersible,
+                 $default = null, $condition = '') {
+    $failOn = null;
+    $func = "is_$type";
+    $given = array_key_exists($name, $vars);
+    $required = $default === null;
+    $defNull = ($default === '' or $default === 'null');
+
+    if ($given and $defNull and $value === null) {
+      $given = false;
+    }
+
+    if (!$given) {
+      $vars[$name] = $value;
+
+      if ($required) {
+        throw new HTMLkiNoInput($this, $name);
+      } elseif (!$defNull) {
+        $value = $this->evaluateStr($default, $vars);
+      } else {
+        $default === '' and $value = $this->defaultForInput($type);
+        $type = $condition = '';
+      }
+    }
+
+    if (!$failOn and $type !== '' and !$func($value) and
+        (!$coersible or !$this->coerseInput($type, $value))) {
+      $failOn = 'type';
+    }
+
+    if (!$failOn and $condition !== '' and !$this->evaluateStr($condition, $vars)) {
+      $failOn = 'value';
+    }
+
+    if (!$failOn) {
+      return true;
+    } elseif ($required) {
+      $failOn .= ' ('.gettype($value).')';
+      throw new HTMLkiInvalidInput($this, $name, $failOn);
+    } else {
+      $this->warning("wrong $failOn for $>$name - using default value", HTMLki::WARN_RENDER + 4);
+      $value = $this->evaluateStr($default, $vars);
+    }
+  }
+
+  function defaultForInput($type) {
+    switch ($type) {
+    case 'array':
+      return array();
+    case 'object':
+      return new \stdClass;
+    case 'bool':
+      return false;
+    case 'integer':
+      return 0;
+    case 'float':
+      return 0.0;
+    case 'string':
+      return '';
+    }
+  }
+
+  function coerseInput($type, &$value) {
+    $null = $value === null;
+
+    switch ($type) {
+    case 'bool':
+      if ($null or is_scalar($value)) {
+        $str = (string) $value;
+        $coersed = ($str === '' or $str === '0' or $str === '1');
+      }
+      $coersed and $value = (bool) $value;
+      break;
+    case 'integer':
+      $coersed = ($null or filter_var($value, FILTER_VALIDATE_INT) !== false);
+      $coersed and $value = (int) $value;
+      break;
+    case 'float':
+      $coersed = ($null or is_int($value) or
+                  filter_var($value, FILTER_VALIDATE_FLOAT) !== false);
+      $coersed and $value = (float) $value;
+      break;
+    case 'string':
+      $coersed = ($null or is_scalar($value));
+      $coersed and $value = (string) $value;
+      break;
+    default:
+      $coersed = false;
+    }
+
+    return $coersed;
+  }
+
   // * $params string
   // = HTMLkiTagCall
   function parseParams($params, array $vars) {
@@ -684,11 +973,18 @@ class HTMLkiTemplate extends HTMLkiObject
 
     while ($params !== '') {
       if ($params[0] === '$') {
-        @list($list, $params) = explode(' ', substr($params, 1), 2);
+        // <tag ${list...} params...>
+        list($list, $params) = HTMLki::split(' ', substr($params, 1));
 
-        if (strpos($list, '{') !== false) {
-          @list($end, $params) = explode('}', $params, 2);
-          $list .= " $end";
+        if ($start = strrchr($list, '{') and !strrchr($start, '}')) {
+          // <tag ${ list... } params...>
+          list($end, $params) = HTMLki::split('}', $params);
+          $list .= " $end}";
+          if (($ch = substr($params, 0, 1)) > ' ') {
+            // Convertor suffix: <tag ${ ... }? ...>
+            $list .= $ch;
+            $params = substr($params, 1);
+          }
         }
 
         $call->lists[] = $list;
@@ -715,18 +1011,26 @@ class HTMLkiTemplate extends HTMLkiObject
 
       if (!preg_match_all($regexp, $params, $matches, PREG_SET_ORDER)) {
         $original = $call->raw === $params ? '' : "; original: [$call->raw]";
-        $this->warning("Cannot parse parameter string [$params]$original.");
+        $this->warning("Cannot parse parameter string [$params]$original.", HTMLki::WARN_RENDER + 1);
       }
 
+      // <tag x= y=z w>
+      // x=     array('x=', '', '', 'x=')
+      // y=z    array(' y=z', ' ', 'y', 'z')
+      // w      array(' w', ' ', '', 'w')
       foreach ($matches as $match) {
         list(, , $key, $value) = $match;
         $valueWrapper = $this->wrapperOf($value);
 
-        if ($key === '') {
-          $call->values[] = array($valueWrapper, $value);
-        } else {
+        if ($key !== '') {
           $keyWrapper = $this->wrapperOf($key);
           $call->attributes[$key] = array($keyWrapper, $valueWrapper, $value);
+        } elseif ($value[strlen($value) - 1] === '=') {
+          // 'x=' - an attribute with empty value.
+          $value = substr($value, 0, -1);
+          $call->attributes[$value] = array('', $valueWrapper, $value);
+        } else {
+          $call->values[] = array($valueWrapper, $value);
         }
       }
     }
@@ -799,7 +1103,7 @@ class HTMLkiTemplate extends HTMLkiObject
 
     while ($alias = &$this->config->tags[$handler]) {
       if (is_string($alias)) {
-        @list($handler, $params) = explode(' ', "$alias ", 2);
+        list($handler, $params) = explode(' ', "$alias ", 2);
       } elseif (is_array($alias) and is_string($alias[0]) and
                 ltrim($alias[0], 'A..Z') !== '') {
         $params = $alias;
@@ -820,7 +1124,7 @@ class HTMLkiTemplate extends HTMLkiObject
       $result = $this->$func($call);
     } elseif (!is_callable($handler)) {
       $handler = var_export($handler, true);
-      $this->warning("Invalid tag handler [$handler]; original tag name: [{$call->tag}].");
+      $this->warning("Invalid tag handler [$handler]; original tag name: [{$call->tag}].", HTMLki::WARN_RENDER + 2);
 
       $result = null;
     } else {
@@ -841,7 +1145,7 @@ class HTMLkiTemplate extends HTMLkiObject
       if (is_int($key)) {
         if ($value === '') { continue; }
 
-        @list($key, $value) = explode('=', $value, 2);
+        list($key, $value) = HTMLki::split('=', $value);
         isset($value) or $value = $key;
       }
 
@@ -869,31 +1173,42 @@ class HTMLkiTemplate extends HTMLkiObject
 
   function evalListName($name, array $vars = array()) {
     $parsed = $this->parseListName($name);
-    $parsed[0] = $this->getList($parsed[0], $vars);
+    $parsed[0] = $this->getList($parsed[0], $vars, $parsed[3]);
     return $parsed;
   }
 
-  // * $name string - format: "[name] [[{] expr [}]]"
+  // * $name string - format: "[name] [[{] expr [}]] [?]"
   function parseListName($name) {
-    @list($prefix, $expr) = explode('{', trim($name), 2);
+    list($prefix, $expr) = HTMLki::split('{', trim($name));
 
-    if ($expr) {
-      $suffix = $prefix;
-
-      if ($prefix !== '') {
-        $prefix .= '_';
-        $suffix = "_$suffix";
-      }
-
-      return array(rtrim($expr, ' }'), $prefix, $suffix);
-    } else {
-      return array("$$prefix", '', '');
+    if ($expr === null) {
+      // <t $expr> -> <t ${ $expr }>
+      $expr = "$$prefix";
+      $prefix = '';
     }
+
+    $suffix = $prefix;
+    if ($prefix === '_') {
+      $prefix = false;    // disable variable creation, only condition checking.
+    } elseif ($prefix !== '') {
+      $prefix .= '_';
+      $suffix = "_$suffix";
+    }
+
+    $convertor = substr($expr, -1);
+    if ($convertor === '?') {
+      $prefix = false;
+    } else {
+      $convertor = '';
+    }
+
+    $convertor === '' or $expr = substr($expr, 0, -1);
+    return array(rtrim($expr, ' }'), $prefix, $suffix, $convertor);
   }
 
   // * $name string - an expression; if begins with '$' this list var is
   //   retrieved using HTMLkiConfig->listVariable callback.
-  function getList($name, array $vars = array()) {
+  function getList($name, array $vars = array(), $convertor = '') {
     $name = trim($name);
 
     if ($name === '') {
@@ -914,7 +1229,9 @@ class HTMLkiTemplate extends HTMLkiObject
 
     isset($result) or $result = $this->evaluateStr($name, $vars);
 
-    if ($result === null or $result === false) {
+    if ($convertor === '?') {
+      return $result ? array(array()) : array();
+    } elseif ($result === null or $result === false) {
       return array();
     } elseif (!is_array($result) and !($result instanceof Traversable)) {
       return array($result);
@@ -938,8 +1255,23 @@ class HTMLkiTemplate extends HTMLkiObject
     if ($call->isSingle) {
       // <... />
       if ($call->lists) {
-        $this->regularTagSingleLoopCall = $call;
-        $this->loop($call, array($this, 'regularTagSingleLoop'));
+        $self = $this;
+        $this->loop($call, function ($vars) use ($self, $call)  {
+          $call = clone $call;
+          // unlike other loop calbacks <single $list /> doesn't return to the view
+          // where extract() adds iteration variables to common pool; this means we
+          // should add already defined variables in the template's scope manually:
+          $vars += $call->vars;
+
+          foreach ($call->defaults as &$s) {
+            $s = $self->evaluateWrapped($vars, '', $s);
+          }
+
+          $call->attributes = $self->evaluateWrapped($vars, $call->attributes);
+          $call->values = $self->evaluateWrapped($vars, $call->values);
+
+          echo $self->htmlTagOf($call, $call->tag);
+        });
       } else {
         $call->attributes = $this->evaluateWrapped($call->vars, $call->attributes);
         $call->values = $this->evaluateWrapped($call->vars, $call->values);
@@ -950,22 +1282,25 @@ class HTMLkiTemplate extends HTMLkiObject
       // </...>
       if ($call->lists) {
         $lists = join(', ', $call->lists);
-        $this->warning("</$tag> form cannot be called with list data: [$lists].");
+        $this->warning("</$tag> form cannot be called with list data: [$lists].", HTMLki::WARN_RENDER + 3);
       }
 
       echo "</$tag>";
     } elseif ($call->lists) {  // <...>
-      $this->regularTagListsLoopResult = array();
-      $this->loop($call, array($this, 'regularTagListsLoop'));
+      $allVars = array();
 
-      if ($this->regularTagListsLoopResult) {
+      $this->loop($call, function ($vars) use (&$allVars) {
+        $allVars[] = $vars;
+      });
+
+      if ($allVars) {
         $call->attributes = $this->evaluateWrapped($call->vars, $call->attributes);
         $call->values = $this->evaluateWrapped($call->vars, $call->values);
 
         echo $this->htmlTagOf($call, $tag);
       }
 
-      return $this->regularTagListsLoopResult;
+      return $allVars;
     } else {
       $call->attributes = $this->evaluateWrapped($call->vars, $call->attributes);
       $call->values = $this->evaluateWrapped($call->vars, $call->values);
@@ -976,28 +1311,42 @@ class HTMLkiTemplate extends HTMLkiObject
     if ($isCollapsed) { echo "</$tag>"; }
   }
 
-  protected function loop($lists, $callback, array $vars = array()) {
+  // $listNameVars is only used to evaluate list name, not passing to $callback.
+  protected function loop($lists, $callback, array $listNameVars = array()) {
     if ($lists instanceof HTMLkiTagCall) {
-      $vars = $lists->vars;
+      $listNameVars = $lists->vars;
       $lists = $lists->lists;
     }
 
     foreach ($lists as $list) {
       $i = -1;
-      list($list, $prefix, $suffix) = $this->evalListName($list, $vars);
+      list($list, $prefix, $suffix) = $this->evalListName($list, $listNameVars);
+      $noVars = $prefix === false;
 
-      foreach ($list as $key => $item) {
-        $vars = array("key$suffix" => $key, "i$suffix" => ++$i, "item$suffix" => $item,
-                      "isFirst$suffix" => $i === 0, "isLast$suffix" => $i >= count($list) - 1,
-                      "isEven$suffix" => $i % 2 == 0, "isOdd$suffix" => $i % 2 == 1);
-
-        if (is_array($item)) {
-          foreach ($item as $key => $value) {
-            $vars[$prefix.$key] = $value;
-          }
+      if ($noVars) {
+        for ($i = count($list); $i > 0; --$i) {
+          call_user_func($callback, array());
         }
+      } else {
+        foreach ($list as $key => $item) {
+          $vars = array(
+            "key$suffix"      => $key,
+            "i$suffix"        => ++$i,
+            "item$suffix"     => $item,
+            "isFirst$suffix"  => $i === 0,
+            "isLast$suffix"   => $i >= count($list) - 1,
+            "isEven$suffix"   => $i % 2 == 0,
+            "isOdd$suffix"    => $i % 2 == 1,
+          );
 
-        call_user_func($callback, $vars);
+          if (is_array($item)) {
+            foreach ($item as $key => $value) {
+              $vars[$prefix.$key] = $value;
+            }
+          }
+
+          call_user_func($callback, $vars);
+        }
       }
     }
   }
@@ -1048,17 +1397,17 @@ class HTMLkiTemplate extends HTMLkiObject
     if (func_num_args() == 2) {
       $keys = array();
 
-      foreach ($wrapper as $key => &$wrapped) {
+      foreach ($wrapper as $key => &$ref) {
         if (is_int($key)) {
-          list($valueWrapper, $value) = $wrapped;
+          list($valueWrapper, $value) = $ref;
         } else {
-          list($keyWrapper, $valueWrapper, $value) = $wrapped;
+          list($keyWrapper, $valueWrapper, $value) = $ref;
           $keys[] = $this->evaluateWrapped($vars, $keyWrapper, $key);
         }
 
-        $last = count($wrapped) - 1;
-        $wrapped[$last - 1] = '-';
-        $wrapped[$last] = $this->evaluateWrapped($vars, $valueWrapper, $value);
+        $last = count($ref) - 1;
+        $ref[$last - 1] = '-';
+        $ref[$last] = $this->evaluateWrapped($vars, $valueWrapper, $value);
       }
 
       return $keys ? array_combine($keys, $wrapper) : $wrapper;
@@ -1077,43 +1426,107 @@ class HTMLkiTemplate extends HTMLkiObject
     $func = $this->config->template;
 
     if (!$func) {
-      $this->warning("Cannot <include> a template - no \$template config handler set.");
-    } elseif (!$call->values) {
-      $this->warning("Cannot <include> a template - no name given.");
+      $this->warning("Cannot <include> a template - no \$template config handler set.", HTMLki::WARN_TAG + 1);
+    } elseif (!$call->defaults) {
+      $this->warning("Cannot <include> a template - no \"name\" given.", HTMLki::WARN_TAG + 2);
     } else {
-      $attributes = $this->evaluateWrapped($call->vars, $call->attributes);
-      foreach ($attributes as $name => &$value) {
-        $call->vars[$name] = array_pop($value);
+      $listNameVars = $call->vars;
+
+      if (!$call->values and !$call->attributes) {
+        $call->vars += $this->vars;
+      } elseif ($call->values and end($call->values[0]) === '0') {
+        $included = $this->makeIncludeVars($call, 2);
+
+        if (count($call->values) > 1) {
+          $var = end($call->values[1]);
+          if (isset($listNameVars[$var]) and is_array($listNameVars[$var])) {
+            $included += $listNameVars[$var];
+          } else {
+            $inCondition = false;
+
+            foreach ($call->lists as $list) {
+              if ($inCondition = strpos(" $list", "$$var")) { break; }
+            }
+
+            if (!$inCondition) {
+              // Believe that if $var is referenced in <include ${...}> then
+              // the programmer knows why and when he's passing it.
+              $this->warning("<include 0 $var> referenced an undefined/non-array value.", HTMLki::WARN_TAG + 3);
+            }
+          }
+        }
+
+        $call->vars = $included;
+      } else {
+        $call->vars = $this->makeIncludeVars($call);
       }
 
-      $values = $this->evaluateWrapped($call->vars, $call->values);
-      $tpl = $file = call_user_func($func, $call->values[0][1], $this, $call);
+      $tpl = $file = call_user_func($func, $call->defaults[0], $this, $call);
 
       if (is_string($tpl)) {
         $config = $this->config->inheritConfig ? 'config' : 'originalConfig';
 
         $tpl = new static($this->$config());
         $tpl->loadFile($file);
-        $tpl->vars($call->vars + $this->vars);
+        $tpl->vars($call->vars);
       }
 
       if ($call->lists) {
-        $this->tag_includeTpl = $tpl;
-        $this->loop($call, array($this, 'tag_includeLoop'));
+        $this->loop($call->lists, function ($vars) use ($tpl) {
+          $tpl->add($vars);
+          echo $tpl->render();
+        }, $listNameVars);
       } else {
         echo $tpl->render();
       }
     }
   }
 
+  protected function makeIncludeVars($call, $firstValue = 0) {
+    $values = $this->evaluateWrapped($call->vars, $call->values);
+    $attrs = $this->evaluateWrapped($call->vars, $call->attributes);
+    $vars = array();
+
+    foreach ($values as $value) {
+      if (--$firstValue >= 0) { continue; }
+      $name = strtok(end($value), '-');
+
+      if (array_key_exists($name, $call->vars)) {
+        $value = $call->vars[$name];
+      } else {
+        $this->warning("Passing on an undefined variable \$$name in <include>.", HTMLki::WARN_TAG + 4);
+        $value = null;
+      }
+
+      $name = strtok(null) ?: $name;
+      $vars[$name] = $value;
+    }
+
+    foreach ($attrs as $name => $attr) {
+      $vars[$name] = end($attr);
+    }
+
+    return $vars;
+  }
+
   protected function tag_each($call) {
     if (!$call->isEnd) {
       if ($call->lists) {
-        $this->tag_eachLoopResult = array();
-        $this->loop($call, array($this, 'tag_eachLoop'));
-        return $this->tag_eachLoopResult;
+        $allVars = array();
+
+        $this->loop($call, function ($vars) use (&$allVars) {
+          $allVars[] = $vars;
+        });
+
+        if ($allVars and $call->attributes) {
+          $first = &$allVars[0];
+          $attrs = $this->evaluateWrapped($call->vars, $call->attributes);
+          foreach ($attrs as $name => $attr) { $first[$name] = end($attr); }
+        }
+
+        return $allVars;
       } else {
-        $this->warning('<each> called without list name.');
+        $this->warning('<each> called without list name.', HTMLki::WARN_TAG + 5);
       }
     }
   }
@@ -1132,7 +1545,7 @@ class HTMLkiTemplate extends HTMLkiObject
       $values = $this->evaluateWrapped($call->vars, $call->values);
 
       if ($values) {
-        foreach ($values as &$value) { $value = array_pop($value); }
+        foreach ($values as &$ref) { $ref = end($ref); }
         $values = array_combine($this->placeholders($values), $values);
       }
 
@@ -1150,48 +1563,6 @@ class HTMLkiTemplate extends HTMLkiObject
       if ($call->isSingle) { echo $this->email($email), '</a>'; }
     }
   }
-
-  /*-----------------------------------------------------------------------
-  | PHP 5.2 SUPPORT - closureless callbacks
-  |----------------------------------------------------------------------*/
-
-  // for regularTag()
-  protected $regularTagSingleLoopCall;
-  function regularTagSingleLoop($vars)  {
-    $call = clone $this->regularTagSingleLoopCall;
-    // unlike other loop calbacks <single $list /> doesn't return to the view
-    // where extract() adds iteration variables to common pool; this means we
-    // should add already defined variables in the template's scope manually:
-    $vars += $call->vars;
-
-    foreach ($call->defaults as &$s) {
-      $s = $this->evaluateWrapped($vars, '', $s);
-    }
-
-    $call->attributes = $this->evaluateWrapped($vars, $call->attributes);
-    $call->values = $this->evaluateWrapped($vars, $call->values);
-
-    echo $this->htmlTagOf($call, $call->tag);
-  }
-
-  // for regularTag()
-  protected $regularTagListsLoopResult;
-  function regularTagListsLoop($vars) {
-    $this->regularTagListsLoopResult[] = $vars;
-  }
-
-  // for tag_include()
-  protected $tag_includeTpl;
-  function tag_includeLoop($vars) {
-    $this->tag_includeTpl->add($vars);
-    echo $this->tag_includeTpl->render();
-  }
-
-  // for tag_each()
-  protected $tag_eachLoopResult;
-  function tag_eachLoop($vars) {
-    $this->tag_eachLoopResult[] = $vars;
-  }
 }
 
 class HTMLkiCompiler extends HTMLkiObject {
@@ -1202,7 +1573,7 @@ class HTMLkiCompiler extends HTMLkiObject {
 
   protected $raw = array();     //= hash of mask => original
   protected $rawSrc = array();  //= hash of mask => string replaced in the template
-  protected $nesting = 0;
+  protected $nesting = array(); //= array of hash tag=>, isLoopTag=>
 
   //= string
   static function braceRegExp($op, $ed = null, $delimiter = '~') {
@@ -1243,14 +1614,14 @@ class HTMLkiCompiler extends HTMLkiObject {
     $source = $this->str;
 
     foreach ($this->config->compilers as $func) {
-      if (is_string($func)) {
-        if ($this->hasCompiler($func)) {
-          $source = $this->{"compile_$func"}($source);
-        } else {
-          $this->error("Compiler function [$func] is not defined.");
-        }
-      } else {
+      if (in_array($func, $this->config->omitCompilers)) {
+        // Skip.
+      } elseif (!is_string($func)) {
         call_user_func($func, $source, $this);
+      } elseif ($this->hasCompiler($func)) {
+        $source = $this->{"compile_$func"}($source);
+      } else {
+        $this->error("Compiler function [$func] is not defined.");
       }
     }
 
@@ -1264,19 +1635,28 @@ class HTMLkiCompiler extends HTMLkiObject {
   }
 
   protected function postCompile(&$str) {
+    if ($this->nesting) {
+      $tags = '';
+
+      foreach ($this->nesting as $tag) {
+        $tags .= ($tags ? ' -> ' : '').$tag['tag'];
+      }
+
+      $s = count($this->nesting) == 1 ? '' : 's';
+      $this->warning("Unterminated \$list tag$s: $tags.");
+    }
+
     $str = strtr($str, $this->raw);
 
     if ($this->config->addLineBreaks) {
       $regexp = '~^(.+(?:Tag|>lang)\(.+?)(\?>)(\r?\n)~m'.$this->config->regexpMode;
-      $str = preg_replace_callback($regexp, array($this, 'postCompileReplacer'), $str);
+      $str = preg_replace_callback($regexp, function ($match) {
+        list(, $code, $ending, $eoln) = $match;
+        return $code.'; echo "'.addcslashes($eoln, "\r\n").'"'.$ending.$eoln;
+      }, $str);
     }
 
     return $this->config->compiledHeader.$str.$this->config->compiledFooter;
-  }
-
-  function postCompileReplacer($match) {
-    list(, $code, $ending, $eoln) = $match;
-    return $code.'; echo "'.addcslashes($eoln, "\r\n").'"'.$ending.$eoln;
   }
 
   //= string masked $str
@@ -1293,6 +1673,7 @@ class HTMLkiCompiler extends HTMLkiObject {
     return $key;
   }
 
+  // Replaces any already collected raw parts in $str.
   function reraw($str) {
     return strtr($str, $this->rawSrc);
   }
@@ -1312,9 +1693,25 @@ class HTMLkiCompiler extends HTMLkiObject {
     return $this->raw("<?$code?>", $src);
   }
 
-  function grabVarsFor($str) {
-    if (strrchr($str, '$') !== false or strpos($str, static::Raw0) !== false) {
-      return ', get_defined_vars()';
+  // For evaluateStr().
+  function grabStringVars($str, $prefix = '') {
+    $grab = $this->config->grabAllVars ? true : null;
+
+    if ($grab === null and strpos($str, static::Raw0) !== false) {
+      $grab = true;
+    }
+
+    if ($grab === null and strrchr($str, '$') !== false) {
+      $regexp = '~\$([a-zA-Z_]\w*)~'.$this->config->regexpMode;
+      preg_match_all($regexp, $str, $matches) and $grab = $matches[1];
+    }
+
+    if ($grab === true) {
+      return $prefix.'get_defined_vars()';
+    } elseif ($grab) {
+      $list = array();
+      foreach ($grab as $name) { $list[] = "'$name'"; }
+      return $prefix.'compact('.join(', ', $list).')';
     }
   }
 
@@ -1331,6 +1728,18 @@ class HTMLkiCompiler extends HTMLkiObject {
     return HTMLki::pcreCheck($result);
   }
 
+  // ... \ (ln)
+  protected function compile_lineMerge(&$str) {
+    return $this->replacing(__FUNCTION__, '(\\\\+)[ \t]*(\r?\n[ \t]*)', $str);
+  }
+
+    protected function match_lineMerge($match) {
+      list(, $slashes, $whitespace) = $match;
+      strlen($slashes) % 2 and $whitespace = '';
+      $slashes = str_repeat($slashes[0], strlen($slashes) / 2);
+      return $slashes.$whitespace;
+    }
+
   // <?...? >
   protected function compile_php(&$str) {
     return $this->replacing(__FUNCTION__, '<\?(php\b|=)?([\s\S]+?)\?>', $str);
@@ -1340,24 +1749,29 @@ class HTMLkiCompiler extends HTMLkiObject {
       list(, $prefix, $code) = $match;
 
       $prefix === '=' and $code = "echo $code";
-      return $this->rawPhp($code);
+      return $this->rawPhp(rtrim($code, ';'));
     }
 
-  // $=...   $$=...   also ^ and *
+  // $=...   $$=...   also >, ^ and *
   protected function compile_varSet(&$str) {
     $ws = '[ \t]';
     $id = '[a-zA-Z_]\w*';
-    $regexp = "~^($ws*\\$)(\\$*)(([=^*])($id)(@(?:$id)?)?($ws+.*)?)(?:\r?\n|$)()~m";
+    $regexp = "~^($ws*\\$)(\\$*)(([=>^*])($id)(@(?:\S*)?)?($ws+.*)?)(\r?\n|$)()~m";
 
     return $this->replacing(__FUNCTION__, $regexp, $str);
   }
 
     protected function match_varSet($match) {
-      list(, $head, $escape, $body, $type, $var, $tag, $value) = $match;
-      $value = ltrim($value);
+      list(, $head, $escape, $body, $type, $var, $tag, $value, $eoln) = $match;
+      // .* matches \r (but not \n if not in /s mode).
+      $value = trim($value);
+      $eoln = $this->config->addLineBreaks ? "\r\n" : '';
+      $self = $this->config->selfVar;
 
       if ($escape) {
         return $this->raw($head.substr($escape, 1), $head.$escape).$body;
+      } elseif ($type === '>') {
+        return $this->match_input($head.$body, $var, $tag, $value).$eoln;
       } elseif ($type === '^' and $value !== '') {
         // "$^var value" is meaningless since inline assignment is just one line.
         return $this->raw($head.$escape).$body;
@@ -1375,31 +1789,77 @@ class HTMLkiCompiler extends HTMLkiObject {
             }
           }
 
-          $tag = strtolower( substr($tag, 1) );
+          $tag = $this->quote(strtolower( substr($tag, 1) ));
           $attributes = join(', ', $attributes);
-          $code = "\$_ki->setTagAttribute('$tag', '$var', array($attributes))";
+          $code = "\${$self}->setTagAttribute('$tag', '$var', array($attributes))";
         } elseif ($value === '') {
           $code = 'ob_start()';
         } else {
+          $value = rtrim($value, ';');
           $code = "$$var = ($value)";
         }
       } elseif ($type === '*' and $value !== '') {
         $value = rtrim($value, ';');
-        $code = "echo \$_ki->escape($$var = $value)";
+        $code = "echo \${$self}->escape($$var = $value)";
       } else {
         $func = $type === '^' ? 'clean' : 'flush';
         $code = "$$var = ob_get_$func()";
       }
 
-      return $this->rawPhp($code, $head.$body);
+      return $this->rawPhp($code, $head.$body).$eoln;
+    }
+
+    protected function match_input($src, $var, $tag, $value) {
+      list($type, $cond) = HTMLki::split(' ', $value);
+
+      $coersible = substr($type, -1) === '!' ? 'false' : 'true';
+      $coersible[0] === 'f' and $type = substr($type, 0, -1);
+
+      $real = &$this->config->typeAliases[$type];
+      $real and $type = $real;
+
+      $cond = trim($cond);
+      if (strtok($cond, ' ') === 'of') {
+        // [array] of string [cond]
+        strtok(' ');
+        $cond = (string) strtok(null);
+      }
+
+      if (strtok($cond, ' ') === 'if') {
+        $cond = strtok(null);
+      } elseif ($cond !== '') {
+        $cond = "$$var $cond";
+      }
+
+      $type === 'any' and $type = '';
+      if ($type !== '' and !function_exists("is_$type")) {
+        $this->warning("unknown type $type for input variable $>$var", HTMLki::WARN_COMPILE + 1);
+        $type = '';
+      }
+
+      $default = $tag === '' ? 'null' : "'".$this->quote(substr($tag, 1))."'";
+      $cond = $this->quote($cond);
+      $vars = $this->grabStringVars("$$var $default $cond");
+      $code = "if (!isset($$var)";
+      $type and $code .= " or !is_$type($$var)";
+      $cond and $code .= " or !($cond)";
+
+      // Must pass $vars first because the by-reference argument will define it.
+      $self = $this->config->selfVar;
+      $code .= ") \${$self}->input($vars, '$var', $$var, '$type', $coersible,".
+               " $default, '$cond')";
+
+      return $this->rawPhp($code, $src);
     }
 
   // <...>   <.../>   </...>
   protected function compile_tags(&$str) {
-    $quoted = static::quotedRegExp();
-    $attr = static::wrappedRegExp().'|->|[^>\r\n]';
+    $ws = $this->config->multilineTags ? '\s' : ' ';
+    $mul = $this->config->multilineTags ? ']|[' : '';
+    $attr = static::wrappedRegExp()."|->|$ws>=?$ws|[^>$mul\\r\\n]";
 
-    $regexp = "<(/?)($quoted|[$\\w/]+)( +($attr)*|/)?>()";
+    $quoted = static::quotedRegExp();
+    $regexp = "<(/?)($quoted|[$\\w/]+)($ws+($attr)*|/)?>()";
     return $this->replacing(__FUNCTION__, $regexp, $str);
   }
 
@@ -1408,22 +1868,30 @@ class HTMLkiCompiler extends HTMLkiObject {
 
       $params = trim($params);
       $isVariable = $isElse = $isLoopStart = $isLoopEnd = $isSingle = false;
+      $isDefault = ($tag[0] === '"' or $match === '</>');
 
-      if ($tag[0] === '"' or $match === '</>') {
+      if ($isDefault) {
         $isEnd = $match === '</>';
         $isSingle = (!$isEnd and substr($params, -1) === '/');
-        $params = $isEnd ? '' : "$tag ".rtrim($params, '/');
+        $params = $isEnd ? '' : rtrim("$tag $params", ' /');
         $tag = '';
       } else {
+        if ($params === '' and substr($tag, -1) === '/') {
+          // Regexp matches <tag/> as 'tag/'. <tag /> is correct: 'tag' + ' /'.
+          $params = '/';
+          $tag = substr($tag, 0, -1);
+        }
+
         $isVariable = strrchr($tag, '$') !== false;
         $isVariable or $tag = strtolower($tag);
 
         $isElse = substr($tag, 0, 4) === 'else';
         $isElse and $tag = (string) substr($tag, 4);
+        $isLoopTag = (!$isVariable and in_array($tag, $this->config->loopTags));
 
         $isSingle = substr($params, -1) === '/';
         if ($isSingle) {
-          $params = substr($params, 0, -1);
+          $params = rtrim(substr($params, 0, -1));
         } elseif (!$isVariable and !$isEnd) {
           $isSingle = in_array($tag, $this->config->singleTags);
         }
@@ -1435,38 +1903,59 @@ class HTMLkiCompiler extends HTMLkiObject {
 
               if ($isLoopEnd) {
                 $tag = (string) substr($tag, 3);
-              } elseif (!$isVariable) {
-                $isLoopEnd = in_array($tag, $this->config->loopTags);
+              } else {
+                $isLoopEnd = $isLoopTag;
               }
             }
-          } else {
-            $isLoopStart = (substr($params, 0, 1) === '$' or
-                            (!$isVariable and in_array($tag, $this->config->loopTags)));
+          } elseif ($isLoopTag or substr($params, 0, 1) === '$') {
+            $isLoopStart = true;
           }
         }
 
         if ($tag === '') {
           $code = $isElse ? '} else {' : ($isLoopEnd ? '}' : '');
+          if ($isLoopEnd) {
+            $this->checkNesting(array_pop($this->nesting), '', '/end');
+          } elseif ($isElse and !$this->nesting) {
+            // <else> matches any opening since closing is never output.
+            $this->checkNesting(null, '', 'else');
+          }
+        }
+      }
+
+      $isMultitag = strrchr($tag, '/');
+
+      if (!isset($code) and $params === '' and !$isElse and !$isLoopStart
+          and !$isLoopEnd and !isset($this->config->tags[$tag])
+          and !$isSingle and !$isMultitag and !$isVariable and !$isDefault) {
+        $list = $this->config->{$isEnd ? 'rawEndTags' : 'rawStartTags'};
+        if ($list === true or in_array($tag, $list)) {
+          return $isEnd ? "</$tag>" : "<$tag>";
         }
       }
 
       if (!isset($code)) {
         $func = $isEnd ? 'endTag' : ($isSingle ? 'singleTag' : 'startTag');
 
-        $tag = $isVariable ? "strtolower(\"$tag\")" : "\"$tag\"";
-        $func = "\$_ki->$func($tag";
+        $tagParam = $isVariable ? "strtolower(\"$tag\")" : "\"$tag\"";
+        $self = $this->config->selfVar;
+        $func = "\${$self}->$func($tagParam";
 
+        $params = strtr($params, array("\r" => '', "\n" => ' '));
         $params = $this->quote($params);
-        $func .= ", '$params', get_defined_vars())";
+        $grabVars = $this->grabVarsForTag($tag, $params);
+        $func .= ", '$params'$grabVars)";
 
         $code = '';
-        $isElse and $code .= '} else ';
 
-        if ($isLoopStart and !$isElse) {
-          ++$this->nesting;
+        if ($isElse) {
+          $code .= '} else ';
+          $this->checkNesting(end($this->nesting), $tag, 'else');
+        } elseif ($isLoopStart) {
+          $this->nesting[] = compact('tag', 'isLoopTag');
         }
 
-        $seqVar = sprintf('$_i%03s', $this->nesting);
+        $seqVar = sprintf('$_i%03s', count($this->nesting));
 
         if ($isLoopStart) {
           $code .= "if ($seqVar = $func)".
@@ -1474,14 +1963,58 @@ class HTMLkiCompiler extends HTMLkiObject {
                    " extract(\$_iteration_)";
         } elseif ($isLoopEnd) {
           $code .= "} $seqVar and extract($func)";
-          --$this->nesting;
+          $this->checkNesting(array_pop($this->nesting), $tag, '/end');
         } else {
-          $isElse and $code .= '{ ';
-          $code .= "extract($func)";
+          // This <else> has a tag (elsetag) so assume it matches </endtag>
+          // (if it's there) and make </endtag> always close the tag even if
+          // preceding if/elseif conditions didn't match it.
+          $isElse and $code .= "{ $seqVar = true; ";
+          $list = $this->config->extractTags;
+
+          if ($isVariable or $isDefault or $list === true or in_array($tag, $list)) {
+            $code .= "extract($func)";
+          } else {
+            $code .= $func;
+          }
         }
       }
 
       return $this->rawPhp($code, $match);
+    }
+
+    protected function checkNesting($last, $tag, $msg1) {
+      if (!$last) {
+        $op = $tag === '' ? join('/', $this->config->loopTags) : $tag;
+        $this->warning("No matching opening <$op $> for <$msg1$tag>.", HTMLki::WARN_COMPILE + 2);
+      } elseif ($tag !== $last['tag'] and (!$last['isLoopTag'] or $tag !== '')) {
+        $this->warning("Opening <$last[tag] $> mismatches <$msg1$tag>.", HTMLki::WARN_COMPILE + 3);
+      }
+    }
+
+    protected function grabVarsForTag($tag, $params) {
+      // <$Variable> and <"default"> tags are not optimized.
+      $grab = ($tag === '' or strrchr($tag, '$')) ? true : null;
+
+      if ($grab === null) {
+        $list = $this->config->grabAllVarsTags;
+
+        if (is_bool($list) or $list === null) {
+          $grab = !!$list;
+        } elseif (in_array($tag, $list)) {
+          $grab = true;
+        }
+      }
+
+      // For formatStr().
+      if ($grab === null and strrchr($params, '{')) {
+        $grab = true;
+      }
+
+      if ($grab) {
+        return ', get_defined_vars()';
+      } else {
+        return $this->grabStringVars($params, ', ');
+      }
     }
 
   // {...}   {{...
@@ -1496,14 +2029,21 @@ class HTMLkiCompiler extends HTMLkiObject {
         $isRaw = $match[1][0] === '=';
         $isRaw and $match[1] = substr($match[1], 1);
 
-        $code = trim( substr($match[1], 0, -1) );
+        $code = rtrim(trim( substr($match[1], 0, -1) ), ';');
+
+        $rubyCallRE = '~^([\w\\\\][\w\d:->\\\\]*)\s+(["\'$[\w\d].*)$~'.
+                      $this->config->regexpMode;
 
         if ($code !== '' and ltrim($code, 'a..zA..Z0..9_') === '' and
             ltrim($code[0], 'a..z_') === '') {
           $code = "$$code";
+        } elseif ($this->config->rubyLike and
+                  preg_match($rubyCallRE, $code, $rubyMatch)) {
+          $code = "$rubyMatch[1]($rubyMatch[2])";
         }
 
-        $isRaw or $code = "\$_ki->escape($code)";
+        $self = $this->config->selfVar;
+        $isRaw or $code = "\${$self}->escape($code)";
         return $this->rawPhp("echo $code", $match[0]);
       }
     }
@@ -1518,8 +2058,9 @@ class HTMLkiCompiler extends HTMLkiObject {
         return $match[1];
       } else {
         $lang = $this->quote( str_replace('""', '"', substr($match[1], 0, -1)) );
-        $vars = $this->grabVarsFor($lang);
-        return $this->rawPhp("echo \$_ki->lang('$lang'$vars)", $match[0]);
+        $vars = $this->grabStringVars($lang);
+        $self = $this->config->selfVar;
+        return $this->rawPhp("echo \${$self}->lang('$lang'$vars)", $match[0]);
       }
     }
 
@@ -1532,7 +2073,8 @@ class HTMLkiCompiler extends HTMLkiObject {
       if (ltrim($match[1], '$') === '') {
         return $match[1];
       } else {
-        return $this->rawPhp("echo \$_ki->escape($$match[1])", $match[0]);
+        $self = $this->config->selfVar;
+        return $this->rawPhp("echo \${$self}->escape($$match[1])", $match[0]);
       }
     }
 }
