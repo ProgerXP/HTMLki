@@ -212,7 +212,7 @@ class Config {
     'hr'        => ['noshade'],
     'img'       => ['ismap'],
     'input'     => ['autofocus', 'checked', 'readonly',
-                         'formnovalidate', 'required'],
+                    'formnovalidate', 'required'],
     'keygen'    => ['autofocus', 'challenge', 'disabled'],
     'option'    => ['selected'],
     'object'    => ['declare'],

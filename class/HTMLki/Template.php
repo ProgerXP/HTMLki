@@ -1,7 +1,7 @@
 <?php namespace HTMLki;
 
 class Template extends Object
-               implements TemplateEnv, \ArrayAccess, \Countable {
+    implements TemplateEnv, \ArrayAccess, \Countable {
   // Populated when Config->$debugEval is set.
   //= array ('eval_str();', array $vars, Template $tpl, $evalResult, str $output)
   static $lastEval;
@@ -31,10 +31,21 @@ class Template extends Object
     return $this;
   }
 
-  function loadedStr()    { return $this->str; }
-  function loadedFile()   { return $this->file; }
-  function isStr()        { return isset($this->str); }
-  function isFile()       { return isset($this->file); }
+  function loadedStr() {
+    return $this->str;
+  }
+
+  function loadedFile() {
+    return $this->file;
+  }
+
+  function isStr() {
+    return isset($this->str);
+  }
+
+  function isFile() {
+    return isset($this->file);
+  }
 
   function offsetExists($var) {
     return $this->get($var) !== null;
@@ -113,7 +124,7 @@ class Template extends Object
 
   function mailto($email, $subject = '', $extra = '') {
     $subject and $subject = "?subject=".rawurlencode($subject);
-    return '&#109;a&#x69;&#108;&#x74;&#111;:'.$this->email($email).$subject.$extra;
+    return '&#109;a&#x69;l&#x74;&#111;:'.$this->email($email).$subject.$extra;
   }
 
   function email($email) {
@@ -126,8 +137,8 @@ class Template extends Object
     return $this->evaluate($this->vars);
   }
 
-  protected function evaluate(array $_vars_) {
-    extract($_vars_, EXTR_SKIP);
+  protected function evaluate(array $_vars) {
+    extract($_vars, EXTR_SKIP);
     ${$this->config->selfVar} = $this;
 
     ob_start();
@@ -135,36 +146,36 @@ class Template extends Object
     return ob_get_clean();
   }
 
-  function evaluateStr($_str_, array $_vars_, $_wrapByConfig_ = true) {
-    $_str_ = "return $_str_;";
+  function evaluateStr($_str, array $_vars, $_wrapByConfig = true) {
+    $_str = "return $_str;";
 
-    if ($_wrapByConfig_) {
-      $_str_ = $this->config->evalPrefix.$_str_.$this->config->evalSuffix;
+    if ($_wrapByConfig) {
+      $_str = $this->config->evalPrefix.$_str.$this->config->evalSuffix;
     }
 
-    $_debug_ = $this->config->debugEval;
-    $_buffering_ = ($_debug_ or $this->config->warnOnFalseEval);
+    $_debug = $this->config->debugEval;
+    $_buffering = ($_debug or $this->config->warnOnFalseEval);
 
-    if ($_debug_) {
-      static::$lastEval = [$_str_, $_vars_, $this];
+    if ($_debug) {
+      static::$lastEval = [$_str, $_vars, $this];
     }
 
-    extract($_vars_, EXTR_SKIP);
+    extract($_vars, EXTR_SKIP);
     // "Before PHP 7, in this case eval() returned FALSE and execution of the
     // following code continued normally. It is not possible to catch a parse
     // error in eval() using set_error_handler()."
-    $_buffering_ and ob_start();
-    $res = eval($_str_);
-    $output = $_buffering_ ? ob_get_flush() : null;
+    $_buffering and ob_start();
+    $res = eval($_str);
+    $output = $_buffering ? ob_get_flush() : null;
 
-    if ($_debug_) {
+    if ($_debug) {
       array_push(static::$lastEval, $res, $output);
-      is_callable($_debug_) and call_user_func_array($_debug_, static::$lastEval);
+      is_callable($_debug) and call_user_func_array($_debug, static::$lastEval);
     }
 
     if ($res === false and $this->config->warnOnFalseEval
         and strpos($output, 'Parse error') !== false) {
-      $this->warning("possible syntax error in eval() code: $_str_", HTMLki::WARN_RENDER + 5);
+      $this->warning("possible syntax error in eval() code: $_str", HTMLki::WARN_RENDER + 5);
     }
 
     return $res;
@@ -187,35 +198,35 @@ class Template extends Object
     return [$str, $this->strParseValues];
   }
 
-    function strParser($match) {
-      $match[0][0] === '$' or array_splice($match, 1, 1);
-      list($full, $code) = $match;
+  function strParser($match) {
+    $match[0][0] === '$' or array_splice($match, 1, 1);
+    list($full, $code) = $match;
 
-      if (ltrim($code, $full[0]) === '') {
-        $value = $code;
-      } elseif ($full[0] === '$') {
-        if (isset($this->strParseVars[$code])) {
-          $value = $this->strParseVars[$code];
-        } else {
-          $value = $this[$code];
-        }
+    if (ltrim($code, $full[0]) === '') {
+      $value = $code;
+    } elseif ($full[0] === '$') {
+      if (isset($this->strParseVars[$code])) {
+        $value = $this->strParseVars[$code];
       } else {
-        $code = substr($code, 0, -1);
-
-        $escaped = (!$this->strParseEscapeExpr or $code[0] === '=');
-        $code[0] === '=' and $code = substr($code, 1);
-
-        $value = $this->evaluateStr($code, $this->strParseVars + $this->vars);
-        $escaped or $value = $this->escape($value);
+        $value = $this[$code];
       }
+    } else {
+      $code = substr($code, 0, -1);
 
-      do {
-        $key = Compiler::Raw0. count($this->strParseValues) .Compiler::Raw1;
-      } while (isset($this->strParseValues[$key]));
+      $escaped = (!$this->strParseEscapeExpr or $code[0] === '=');
+      $code[0] === '=' and $code = substr($code, 1);
 
-      $this->strParseValues[$key] = $value;
-      return $key;
+      $value = $this->evaluateStr($code, $this->strParseVars + $this->vars);
+      $escaped or $value = $this->escape($value);
     }
+
+    do {
+      $key = Compiler::Raw0. count($this->strParseValues) .Compiler::Raw1;
+    } while (isset($this->strParseValues[$key]));
+
+    $this->strParseValues[$key] = $value;
+    return $key;
+  }
 
   function formatStr($str, array &$vars) {
     list($str, $values) = $this->parseStr($str, $vars);
@@ -295,18 +306,18 @@ class Template extends Object
 
   function defaultForInput($type) {
     switch ($type) {
-    case 'array':
-      return [];
-    case 'object':
-      return new \stdClass;
-    case 'bool':
-      return false;
-    case 'integer':
-      return 0;
-    case 'float':
-      return 0.0;
-    case 'string':
-      return '';
+      case 'array':
+        return [];
+      case 'object':
+        return new \stdClass;
+      case 'bool':
+        return false;
+      case 'integer':
+        return 0;
+      case 'float':
+        return 0.0;
+      case 'string':
+        return '';
     }
   }
 
@@ -314,28 +325,28 @@ class Template extends Object
     $null = $value === null;
 
     switch ($type) {
-    case 'bool':
-      if ($null or is_scalar($value)) {
-        $str = (string) $value;
-        $coersed = ($str === '' or $str === '0' or $str === '1');
-      }
-      $coersed and $value = (bool) $value;
-      break;
-    case 'integer':
-      $coersed = ($null or filter_var($value, FILTER_VALIDATE_INT) !== false);
-      $coersed and $value = (int) $value;
-      break;
-    case 'float':
-      $coersed = ($null or is_int($value) or
-                  filter_var($value, FILTER_VALIDATE_FLOAT) !== false);
-      $coersed and $value = (float) $value;
-      break;
-    case 'string':
-      $coersed = ($null or is_scalar($value));
-      $coersed and $value = (string) $value;
-      break;
-    default:
-      $coersed = false;
+      case 'bool':
+        if ($null or is_scalar($value)) {
+          $str = (string) $value;
+          $coersed = ($str === '' or $str === '0' or $str === '1');
+        }
+        $coersed and $value = (bool) $value;
+        break;
+      case 'integer':
+        $coersed = ($null or filter_var($value, FILTER_VALIDATE_INT) !== false);
+        $coersed and $value = (int) $value;
+        break;
+      case 'float':
+        $coersed = ($null or is_int($value) or
+                    filter_var($value, FILTER_VALIDATE_FLOAT) !== false);
+        $coersed and $value = (float) $value;
+        break;
+      case 'string':
+        $coersed = ($null or is_scalar($value));
+        $coersed and $value = (string) $value;
+        break;
+      default:
+        $coersed = false;
     }
 
     return $coersed;
@@ -418,9 +429,11 @@ class Template extends Object
 
   protected function wrapperOf($str) {
     switch ($str[0]) {
-    case '"':
-    case '{':   return $str[0];
-    default:    return '';
+      case '"':
+      case '{':
+        return $str[0];
+      default:
+        return '';
     }
   }
 
@@ -611,7 +624,7 @@ class Template extends Object
       return $result ? [[]] : [];
     } elseif ($result === null or $result === false) {
       return [];
-    } elseif (!is_array($result) and !($result instanceof Traversable)) {
+    } elseif (!is_array($result) and !($result instanceof \Traversable)) {
       return [$result];
     } else {
       return $result;
@@ -665,7 +678,7 @@ class Template extends Object
 
       echo "</$tag>";
     } elseif ($call->lists) {  // <...>
-      $allVars = array();
+      $allVars = [];
 
       $this->loop($call, function ($vars) use (&$allVars) {
         $allVars[] = $vars;
@@ -690,7 +703,7 @@ class Template extends Object
   }
 
   // $listNameVars is only used to evaluate list name, not passing to $callback.
-  protected function loop($lists, $callback, array $listNameVars = array()) {
+  protected function loop($lists, $callback, array $listNameVars = []) {
     if ($lists instanceof TagCall) {
       $listNameVars = $lists->vars;
       $lists = $lists->lists;
@@ -703,11 +716,11 @@ class Template extends Object
 
       if ($noVars) {
         for ($i = count($list); $i > 0; --$i) {
-          call_user_func($callback, array());
+          call_user_func($callback, []);
         }
       } else {
         foreach ($list as $key => $item) {
-          $vars = array(
+          $vars = [
             "key$suffix"      => $key,
             "i$suffix"        => ++$i,
             "item$suffix"     => $item,
@@ -715,7 +728,7 @@ class Template extends Object
             "isLast$suffix"   => $i >= count($list) - 1,
             "isEven$suffix"   => $i % 2 == 0,
             "isOdd$suffix"    => $i % 2 == 1,
-          );
+          ];
 
           if (is_array($item)) {
             foreach ($item as $key => $value) {
@@ -737,7 +750,7 @@ class Template extends Object
   }
 
   // = string HTML
-  function htmlTag($tag, array $attributes = array(), $isSingle = false) {
+  function htmlTag($tag, array $attributes = [], $isSingle = false) {
     $end = ($isSingle and $this->config->xhtml) ? ' /' : '';
     $attributes = $this->htmlAttributes($attributes);
     return "<$tag$attributes$end>";
@@ -773,7 +786,7 @@ class Template extends Object
 
   function evaluateWrapped(array &$vars, $wrapper, $value = null) {
     if (func_num_args() == 2) {
-      $keys = array();
+      $keys = [];
 
       foreach ($wrapper as $key => &$ref) {
         if (is_int($key)) {
@@ -863,7 +876,7 @@ class Template extends Object
   protected function makeIncludeVars($call, $firstValue = 0) {
     $values = $this->evaluateWrapped($call->vars, $call->values);
     $attrs = $this->evaluateWrapped($call->vars, $call->attributes);
-    $vars = array();
+    $vars = [];
 
     foreach ($values as $value) {
       if (--$firstValue >= 0) { continue; }
@@ -872,7 +885,7 @@ class Template extends Object
       if (array_key_exists($name, $call->vars)) {
         $value = $call->vars[$name];
       } else {
-        $this->warning("Passing on an undefined variable \$$name in <include>.", HTMLki::WARN_TAG + 4);
+        $this->warning("Passing on an undefined variable $$name in <include>.", HTMLki::WARN_TAG + 4);
         $value = null;
       }
 
@@ -890,7 +903,7 @@ class Template extends Object
   protected function tag_each($call) {
     if (!$call->isEnd) {
       if ($call->lists) {
-        $allVars = array();
+        $allVars = [];
 
         $this->loop($call, function ($vars) use (&$allVars) {
           $allVars[] = $vars;
@@ -899,7 +912,9 @@ class Template extends Object
         if ($allVars and $call->attributes) {
           $first = &$allVars[0];
           $attrs = $this->evaluateWrapped($call->vars, $call->attributes);
-          foreach ($attrs as $name => $attr) { $first[$name] = end($attr); }
+          foreach ($attrs as $name => $attr) {
+            $first[$name] = end($attr);
+          }
         }
 
         return $allVars;
@@ -912,7 +927,7 @@ class Template extends Object
   protected function tag_if($call) {
     if (!$call->isEnd) {
       $holds = $this->evaluateStr($call->raw, $call->vars);
-      return $holds ? array(array()) : array();
+      return $holds ? [[]] : [];
     }
   }
 

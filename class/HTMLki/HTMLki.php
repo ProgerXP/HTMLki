@@ -34,8 +34,8 @@ class HTMLki {
 
   //= string
   static function compile($str, $config = null) {
-    $obj = new Compiler(static::config($config), $str);
-    return $obj->compile();
+    return (new Compiler(static::config($config), $str))
+      ->compile();
   }
 
   //* $file str - path to HTMLki template file.
@@ -71,14 +71,14 @@ class HTMLki {
 
   //= Template
   static function template($str, $config = null) {
-    $obj = new Template(static::config($config));
-    return $obj->loadStr($str);
+    return (new Template(static::config($config)))
+      ->loadStr($str);
   }
 
   //= Template
   static function templateFile($file, $config = null) {
-    $obj = new Template(static::config($config));
-    return $obj->loadFile($file);
+    return (new Template(static::config($config)))
+      ->loadFile($file);
   }
 
   //= $result
@@ -94,12 +94,7 @@ class HTMLki {
 
   // $separ must be single character.
   static function split($separ, $str) {
-    $tail = strrchr($str, $separ);
-    if ($tail === false) {
-      return [$str, null];
-    } else {
-      return explode($separ, $str, 2);
-    }
+    return explode($separ, $str, 2) + ['', null];
   }
 }
 

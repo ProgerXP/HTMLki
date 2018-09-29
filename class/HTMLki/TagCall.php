@@ -1,19 +1,19 @@
 <?php namespace HTMLki;
 
 class TagCall {
-  public $raw;                      //= string raw parameter string
+  public $raw;                //= string raw parameter string
 
-  public $lists = [];               // list variable names without leading '$'
-  public $defaults = [];            // default attributes without wrapping quotes
-  public $attributes = [];          // 'attr' => array('keyWr', 'valueWr', 'value')
-  public $values = [];              //= array of array('valueWr', string)
+  public $lists = [];         // list variable names without leading '$'
+  public $defaults = [];      // default attributes without wrapping quotes
+  public $attributes = [];    // 'attr' => array('keyWr', 'valueWr', 'value')
+  public $values = [];        //= array of array('valueWr', string)
 
-  public $tag;                      //= string
+  public $tag;                //= string
   public $isEnd = false;
   public $isSingle = false;
 
-  public $tpl;                      //= Template
-  public $vars;                     //= hash
+  public $tpl;                //= Template
+  public $vars;               //= hash
 
   function __construct() {
     $this->clear();
@@ -72,7 +72,9 @@ class TagCall {
       $str === '' or $config->expandAttributeOf($this->tag, $str, $result);
     }
 
-    foreach ($attributes as $name => $value) { $result[$name] = $value[2]; }
+    foreach ($attributes as $name => $value) {
+      $result[$name] = $value[2];
+    }
 
     // unset() rewinds foreach.
     $names = array_keys($result);
