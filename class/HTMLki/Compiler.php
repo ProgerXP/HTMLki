@@ -247,8 +247,8 @@ class Compiler extends Configurable {
   protected function match_input($src, $var, $tag, $value) {
     list($type, $cond) = HTMLki::split(' ', $value);
 
-    $coersible = substr($type, -1) === '!' ? 'false' : 'true';
-    $coersible[0] === 'f' and $type = substr($type, 0, -1);
+    $coercible = substr($type, -1) === '!' ? 'false' : 'true';
+    $coercible[0] === 'f' and $type = substr($type, 0, -1);
 
     $real = &$this->config->typeAliases[$type];
     $real and $type = $real;
@@ -281,7 +281,7 @@ class Compiler extends Configurable {
 
     // Must pass $vars first because the by-reference argument will define it.
     $self = $this->config->selfVar;
-    $code .= ") \${$self}->input($vars, '$var', $$var, '$type', $coersible,".
+    $code .= ") \${$self}->input($vars, '$var', $$var, '$type', $coercible,".
              " $default, '$cond')";
 
     return $this->rawPhp($code, $src);
@@ -466,7 +466,7 @@ class Compiler extends Configurable {
 
       $code = rtrim(trim( substr($match[1], 0, -1) ), ';');
 
-      $rubyCallRE = '~^([\w\\\\][\w\d:->\\\\]*)\s+(["\'$[\w\d].*)$~'.
+      $rubyCallRE = '~^([\w\\\\][\w:->\\\\]*)\s+(["\'$[\w].*)$~'.
                     $this->config->regexpMode;
 
       if ($code !== '' and ltrim($code, 'a..zA..Z0..9_') === '' and

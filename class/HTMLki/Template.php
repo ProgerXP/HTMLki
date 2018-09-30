@@ -259,7 +259,7 @@ class Template extends Configurable
   // null $default assumes that $name is required. '' $default sets it
   // according to given $type (blank string for 'string', empty array for 'array',
   // null for '' (any), etc.).
-  function input($vars, $name, &$value, $type, $coersible,
+  function input($vars, $name, &$value, $type, $coercible,
                  $default = null, $condition = '') {
     $failOn = null;
     $func = "is_$type";
@@ -275,7 +275,7 @@ class Template extends Configurable
       $vars[$name] = $value;
 
       if ($required) {
-        throw new NoInput($this, $name);
+        throw new Exceptions\NoInput($this, $name);
       } elseif (!$defNull) {
         $value = $this->evaluateStr($default, $vars);
       } else {
@@ -285,7 +285,7 @@ class Template extends Configurable
     }
 
     if (!$failOn and $type !== '' and !$func($value) and
-        (!$coersible or !$this->coerseInput($type, $value))) {
+        (!$coercible or !$this->coerceInput($type, $value))) {
       $failOn = 'type';
     }
 
@@ -297,7 +297,7 @@ class Template extends Configurable
       return true;
     } elseif ($required) {
       $failOn .= ' ('.gettype($value).')';
-      throw new InvalidInput($this, $name, $failOn);
+      throw new Exceptions\InvalidInput($this, $name, $failOn);
     } else {
       $this->warning("wrong $failOn for $>$name - using default value", HTMLki::WARN_RENDER + 4);
       $value = $this->evaluateStr($default, $vars);
@@ -321,35 +321,35 @@ class Template extends Configurable
     }
   }
 
-  function coerseInput($type, &$value) {
+  function coerceInput($type, &$value) {
     $null = $value === null;
 
     switch ($type) {
       case 'bool':
         if ($null or is_scalar($value)) {
           $str = (string) $value;
-          $coersed = ($str === '' or $str === '0' or $str === '1');
+          $coerced = ($str === '' or $str === '0' or $str === '1');
         }
-        $coersed and $value = (bool) $value;
+        $coerced and $value = (bool) $value;
         break;
       case 'integer':
-        $coersed = ($null or filter_var($value, FILTER_VALIDATE_INT) !== false);
-        $coersed and $value = (int) $value;
+        $coerced = ($null or filter_var($value, FILTER_VALIDATE_INT) !== false);
+        $coerced and $value = (int) $value;
         break;
       case 'float':
-        $coersed = ($null or is_int($value) or
+        $coerced = ($null or is_int($value) or
                     filter_var($value, FILTER_VALIDATE_FLOAT) !== false);
-        $coersed and $value = (float) $value;
+        $coerced and $value = (float) $value;
         break;
       case 'string':
-        $coersed = ($null or is_scalar($value));
-        $coersed and $value = (string) $value;
+        $coerced = ($null or is_scalar($value));
+        $coerced and $value = (string) $value;
         break;
       default:
-        $coersed = false;
+        $coerced = false;
     }
 
-    return $coersed;
+    return $coerced;
   }
 
   // * $params string

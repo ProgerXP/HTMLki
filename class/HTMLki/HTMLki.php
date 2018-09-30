@@ -88,7 +88,7 @@ class HTMLki {
     if ($code == PREG_NO_ERROR) {
       return $result;
     } else {
-      throw new PcreError($code);
+      throw new Exceptions\PcreError($code);
     }
   }
 
