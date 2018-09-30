@@ -38,8 +38,8 @@ class Config {
   public $multilineTags = false;
 
   public $singleTags = ['area', 'base', 'basefont', 'br', 'col', 'frame',
-                         'hr', 'img', 'input', 'link', 'meta', 'param',
-                         'lang', 'include'];
+                        'hr', 'img', 'input', 'link', 'meta', 'param',
+                        'lang', 'include'];
 
   public $loopTags = ['each', 'if'];
 
@@ -96,7 +96,9 @@ class Config {
   // undefined/mistyped variables, etc.
   public $debugEval = false;
 
-  public $xhtml = true;
+  //= true for HTML 4/XHTML, false for HTML 5
+  //? <img ... /> is XHTML, <img ...> is HTML 5
+  public $xhtml = false;
 
   // Used to quote HTML strings.
   public $charset = 'utf-8';
@@ -230,7 +232,7 @@ class Config {
   // Format: 'attribute[=value...]' - if 'value' is omitted shortcut's name is used.
   //= hash of hash of strings (or arrays)
   public $shortAttributes = [
-    // for all tags including those listed here (tag-specific ones override these):
+    // For all tags including those listed here (tag-specific ones override these):
     ''          => [
       'left'    => 'align',   'center'  => 'align',   'right'   => 'align',
       'justify' => 'align',   'top'     => 'align',   'middle'  => 'align',
