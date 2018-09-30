@@ -1,6 +1,6 @@
-== HTMLki - Seamless templating with the HTML spirit. Supports PHP 5.2 and up. Standalone. ==
+== HTMLki - seamless templating with the HTML spirit ==
 
-**HTMLki** is a standarlone templating engine for PHP 5.2 and up. Unlike most today's templating systems that treat HTML as text and insert their own data here and there **HTMLki //extends// HTML** by adding variables, loops, language lines, etc. directly into HTML constructs. At the same time any valid HTML or PHP code is a valid HTMLki template.
+**HTMLki** is a standalone templating engine for PHP 5.6 and up. Unlike most today's templating systems that treat HTML as text and insert their own directives here and there **HTMLki //extends// HTML** by adding variables, loops, language lines, etc. directly into existing HTML constructs. Any valid HTML or PHP code is also a valid HTMLki template.
 
 For example, here's a simple menu in HTMLki:
 %%(html)
@@ -12,7 +12,7 @@ For example, here's a simple menu in HTMLki:
   </endul>
 %%
 
-This is equivalent to the following PHP code:
+This is roughly equivalent to the following PHP code:
 %%(php)
   <?php if ($menu) {?>
     <ul>
@@ -47,145 +47,21 @@ HTMLki imbues HTML with:
     # and ((#tags more))
   * ((#language language lines)) - simply text wrapped in double quotes: %%(html)<b>"Hello!"</b>%%
   * ((#brackets expressions and variables)) - like %%(html){ date('d.m.y') }%%
-  * ((#php PHP code)) - just as you guess: %%(php)<?='string'?>%% - short PHP tags expanded automatically so you don't have to care about %%php.ini%% settings
+  * ((#php PHP code)) - just as you guess: %%(php)<?='string'?>%% - short PHP tags expanded automatically so you don't have to care about any particular %%php.ini%% settings
   * ((#funcs function-tags)) - in form of custom tags like %%(html)<include>%%
   * most constructs can be escaped, such as %%""Not a language."%%, %%{{ not_an_expr }%% and %%$$notAVar%%.
   * this list is not complete - refer to ((#Syntax)) for all enhancements
 
-The above doesn't require any additional integration code. However, if you can blossom HTMLki to the fullest by doing custom filtering on tag attributes and tag themselves.
+The above doesn't require any additional integration code. However, you can tailor HTMLki into a markup ideal for your particular application by adding handlers for specific tags, attributes, etc.
 
-For example, in ((#Laravel)) HTMLki automatically expands %%src%%, %%href%% and %%action%% attributes to full URL and there are tags like %%(html)<errors>%% that output the list of errors linked to an input field (textarea, selectbox, etc.).
+For example, HTMLki can automatically expand %%src%%, %%href%% and %%action%% attributes into full URLs, or have tags like %%(html)<errors>%% that output the list of errors linked to some input field (textarea, selectbox, etc.).
 
 == Download ==
 **Grab the ((https://github.com/ProgerXP/HTMLki/archive/master.zip latest version here)).**
 
-If you're using HTMLki on its own you only need %%htmlki.php%% file - it's standalone. Other files represent ((#Laravel)) bundle and if you're not using it feel free to delete them.
-
 **HTMLki is hosted on ((https://github.com/ProgerXP/HTMLki GitHub)).** Report any ((https://github.com/ProgerXP/HTMLki/issues issues)) and make pull requests there.--- Additionally, you can just drop a line here in the ((#comments)).
 
 HTMLki is released **in public domain**. I would appreciate attribution and a backlink, though.
-
-== Laravel integration ==
-HTMLki officially comes with a ((http://laravel.com Laravel)) bundle ([[http://bundles.laravel.com/bundle/htmlki repository page]]) that automatically handles //Views// with extensions %%.ki.php%%, %%.ki.html%% and %%.htmlki%% (can be changed in the config file).
-
-**LHTMLki** is a //View// extending %%Laravel\View%% which adds multiple features linked with Laravel which are described below one by one.
-
-=== Configuration ==
-HTMLki is configurable using standard Laravel means (%%bundles/htmlki/config/htmlki.php%% file).
-
-There are global options and per-path options affecting only //Views// residing under a certain path. These are specified in %%override%% array. On run-time you should not directly modify this array as it's cached - do this instead:
-%%(php)
-  overrideHTMLki('mybundle::admin.sub', array('extensions' => '.ki'));
-%%
-
-Make sure HTMLki bundle is started or this function won't be available.
-
-=== Last input values ==
-Last input values are automatically inserted unless there's an explicit %%(html)<input value="x">%%.
-
-%%(html)
-  <form "go">
-    <input "login">
-    <password "password" value="">
-    <checkbox "remember">
-  </form>
-%%
-
-After this form is submitted %%login%% and %%remember%% fields will have the value/check state as on the previous page while %%password%% will always be blank. This works for %%(html)input%% and %%(html)textarea%% tags.
-
-The **default** attribute can be used to specify non-overriding default value that's replaced by last input when it exists. It's similar to HTML 5's **placeholder** but acts as a normal value. For %%(html)<textarea>%% it's named **defaulting**:
-%%(html)
-  <input "author" default=Anonymous>
-
-  <textarea defaulting>This text won't be replaced.</textarea>
-%%
-
-=== Expansion of **action** and **href** ==
-**action** and **href** attributes are automatically expanded to full URL using these simple rules:
-  1. If it contains %%@%% it's **controller action**: %%(php)URL::to_action('cart@clear')%%
-  1. Otherwise, if a **named route** exists it's used: %%(php)URL::to_route('contacts')%%
-  1. Finally, it's resolved as **normal URL**, either relative or absolute: %%(php)URL::to('normal/page?goes=here')%%
-
-if URL starts with %%mailto:%% it's not processed.
-
-If URL contains a query string it's appended to the expanded URL: %%(html)<a "user@login?login=$login">%% becomes %%(html)<a href="/store/user/login?login=test">%%. The same happens with slugs when added to action or route: %%store::goods/5/price%% becomes %%/store/goods/5/price%%. Or, combined: %%store::goods/5?sort=price%% becomes %%/store/goods/5?sort=price%%.
-
-Additionally, an URL can start with **plus sign (%%+%%)** - in this case current query variables are retained. If URL specifies a query string its variables override request's. For example, this template will produce different links depending on the page we open (such as %%goods/show?page=1&sort=price%%):
-%%(html)
-  <a  "goods@show?page=2">Next page</a>
-  <!-- <a href="goods/show?page=2"> -->
-  <a "+goods@show?page=2">Next page</a> retaining view options
-  <!-- <a href="goods/show?sort=price&page=2"> -->
-%%
-
-==== %%<form>%%'s action ==
-In addition to the above expansion form's **action** is allowed to contain query variables which are removed and instead placed as a set of %%(html)<input type="hidden">%% immediately after the opening tag.
-
-%%(html)
-  <form "cart@put?item[$id]=$qty">
-%%
-
-Becomes:
-%%(html)
-  <form action="cart/put">
-    <input type="hidden" name="item[75]" value="1">
-%%
-
-=== Expansion of **src** ==
-**src** attribute is expanded as an asset path (%%(php)URL::to_asset()%%). Additionally, %%bundle::%% prefix can be present; if not application's asset is assumed.
-
-For example: %%(html)<img "admin::logo.png">%% becomes %%(html)<img src="public/bundles/admin/logo.png">%%.
-
-=== %%<errors>%% tag ==
-%%(html)<errors>%% tag is used to insert a list of errors usually produced by a //Validator//. The name of input for which errors are retrieved is given as %%(html)<errors "input_name">%% - if omitted, last output input will be used or if there's none it's ignored an a warning is emitted (logged by default).
-
-For example:
-%%(html)
-  <input "login">
-  <errors>
-  <!-- the same: -->
-  <errors "login">
-%%
-
-Produced output (tag name, attributes and item format are customizable through the config):
-%%(html)
-  <input type="text" name="login">
-
-  <ul class="errors">
-    <li>Login must be alphanumeric.</li>
-    <li>Login must be at least 3 characters long.</li>
-  </ul>
-%%
-
-=== %%<js>%% and %%<css>%% tag ==
-%%(html)<js>%% and %%(html)<css>%% tags register new assets.
-
-%%(html)
-  <js "jquery.js" js/jquery-1.9.1.js to=head>
-  <css css/botstrap.css>
-%%
-
-  * asset name is optional and is specified as %%(html)"name.ext"%%
-  * **to** attribute is optional and specifies the container (defaults to %%default%% - the global container)
-  * path to asset is expanded with %%(php)URL::to_asset()%% and is the only required attribute
-
-The above two tags are equivalents of calling this from your template (or elsewhere):
-%%(php)
-  Asset::container('head')->script('jquery.js', 'js/jquery-1.9.1.js');
-  Asset::style('bootstrap.css', 'css/bootstrap.css');
-%%
-
-=== %%<csrf>%% tag ==
-%%(html)<csrf>%% tag lets you insert request token. Variable name can optionally be given as %%(html)<csrf "input_var">%%.
-
-%%(html)
-  <csrf>
-%%
-
-Becomes:
-%%(html)
-  <input type="hidden" name="csrf_token" value="60S9QvppzfWs3PnOBgB81x2nXe5yFwTx9Bm5L8GJ">
-%%
 
 
 == Syntax ==
@@ -216,6 +92,11 @@ Equivalent to:
   <time datetime="<?=htmlspecialchars((gmdate('Y-m-d'))?>">">
 %%
 
+Trailing semicolon is optional:
+%%(html)
+  <h2>{ $title; }</h2>
+%%
+
 ==== Dollar shortcut ====
 Outputs an escaped variable content; starts with a dollar symbol (%%$%%) followed by a Latin letter and includes all consecutive %%a-z A-Z 0-9 _%% symbols. Standalone %%$%%'s not matching this pattern are output as is.
 
@@ -235,6 +116,12 @@ Equivalent to:
   This costs <em><?='$5'?></em> (USD).
 %%
 
+**Attention:** unlike regular PHP string syntax, %%$obj->prop%% and %%$arr[0]%% output not value of the object property or array member but value of %%$obj%% or %%$arr% followed by raw %%->prop%% or %%[0]%% strings. Use PHP insets for this:
+%%(html)
+  Hello, <strong>{ $user->name }</strong>!
+  Hello, <strong>{ $user['name'] }</strong>!
+%%
+
 ==== {= raw } ====
 The same as ((#bracket+s)) expression but doesn't escape HTML characters. Should be used with care as it creates a ((WP:XSS)) possibility.
 
@@ -248,6 +135,33 @@ Equivalent to:
 %%(php)
   <h2><?php echo $title?></h2>
   <time datetime="<?=gmdate('Y-m-d')?>">">
+%%
+
+==== Ruby-like function call ====
+Ruby allows omitting brackets around the outermost function call for readability and brevity. A similar feature is supported within %%{ }%% construct:
+%%(html)
+  Your balance is <b>${ number_format $user->balance }</b>.
+%%
+
+Equivalent to:
+%%(php)
+  Your balance is <b>$<?=number_format($user->balance)?></b>.
+%%
+
+Formally:
+%%
+  {[=][ ]Func PrefixArgs[;]}
+  Func    = one or more of \w \ : - >
+  Prefix  = one of " ' $ [ \w
+  Args    = anything
+%%
+
+The above construct is replaced by %%(php)<?=Func(PrefixArgs)?>%% (with escaping added for non-%%{=%% form).
+
+More examples:
+%%(html)
+  Your balance is <b>{= Locale::currencyAsHTML User::current()->balance }</b>.
+  Timezones: { join ', ', \DateTimeZone::listIdentifiers(\DateTimeZone::ANTARCTICA) }.
 %%
 
 ==== {{ escape ====
@@ -292,6 +206,8 @@ Equivalent to:
   </p>
 %%
 
+**Attention:** because these are not PHP strings, %%"Hello, $user->name"%% becomes %%"Hello, :1->name"%%. To reference an object field or array member use %%"Hello, { $user->name }"%%.
+
 ==== ""escape ====
 Double quotes prevent the following text from being treated as a ((#language)) string. They are output as is.
 
@@ -313,6 +229,72 @@ Inside language strings quotes can be doubled to produce single quotes:
 Equivalent to:
 %%(php)
   <em><?=$this->lang('Hello, mister "Robertson".')?></em>
+%%
+
+=== Line merging ===
+Often in HTML you have a long line which cannot be broken without unwanted side effects. The trailing-backslash syntax borrowed from C addresses this problem:
+%%(html)
+  <a href="..." \
+      onclick="alert('Okay, clicked.\n\
+        Now what?')">
+    Link text\
+  </a>
+%%
+
+Equivalent to:
+%%(html)
+  <a href="..." onclick="alert('Okay, clicked.\nNow what?')">
+    Link text</a>
+%%
+
+Example removing extra spaces inside HTML lists which would get in a way:
+%%(html)
+  <span "list">\
+    <a href="...">Item 1</a>\
+    <a href="...">Item 2</a>\
+  </span>
+%%
+
+Equivalent to:
+%%(html)
+  <span class="list"><a href="...">Item 1</a><a href="...">Item 2</a></span>
+%%
+
+Line merging happens before all other processing and can be used with constructs that are normally single-line, like PHP code, ((#language)) strings and ((#brackets)):
+%%(php)
+  <?='A very\
+    long  \
+    string'?>
+  "Hello, my dear \
+    $user!"
+  { \
+    a(brace, form) \
+  }
+%%
+
+Equivalent to:
+%%(php)
+  <?='A verylong  string'?>
+  "Hello, my dear $user!"
+  { a(brace, form) }
+%%
+
+Formally, everything starting from %%\%% until next non-whitespace symbol (on the following line) is removed. %%\%% may be followed by any number of tabs and spaces before the line break. Whitespace before %%\%% is preserved.
+
+==== \\escape ====
+Each pair of trailing backslashes is shrunk to a single %%\%% and no line merging happens (unless there is an unpaired %%\%%):
+%%
+  C-style languages \\
+  might also \\\
+    cause the \\\\
+    leaning toothpick syndrome (LTS).
+%%
+
+Equivalent to:
+%%
+  C-style languages \
+  might also \cause the \\
+    leaning toothpick syndrome (LTS).
 %%
 
 === Variable assignment ===
@@ -350,6 +332,11 @@ Equivalent to:
   ...
   </ul>
   <?php echo htmlspecialchars($warning)?>
+%%
+
+Trailing semicolon is optional:
+%%(html)
+  $=maxLength 50;
 %%
 
 ==== Multi-line ====
@@ -462,6 +449,65 @@ Without defining %%chk%% as a flag attribute its value won't be treated as a boo
   <foo someattr="">
 %%
 
+=== $>input@checking ==
+A default template is an amorphous blob with no input semantics - it takes what is given and in whatever form. Input checking is used to make a template more standalone, more robust to changes outside of it and have a clearly defined interface.
+
+Example:
+%%(html)
+  $>lastPage        int
+  $>currentPage@1   int <= $lastPage
+  Current page is $currentPage.
+  <a ${ $currentPage > 1 }?>Go back</enda>
+  <a ${ $currentPage < $lastPage }?>Go next</enda>
+%%
+
+The first two lines are roughly equivalent to:
+%%(php)
+  if (!isset($lastPage) or !is_int($lastPage)) { throw ...; }
+  if (!isset($currentPage)) { $currentPage = 1; }
+  if (!is_int($currentPage) or !($currentPage <= $lastPage)) { throw ...; }
+%%
+
+By convention, all checks for template's input variables are placed on top of the file. The syntax is similar to other ((#variable)) assignments:
+%%
+  $>inputVar[@[default]] [type[!] | any] [of smth] [[if ]cond]
+%%
+
+The shortest form is just %%$>someVar%% setting **type** to %%any%% and omitting all other parts.
+
+  * **default** specifies the value used in case the input variable is unset. **default** lasts until next whitespace: %%$>number@rand()%16 int%% is fine but %%$>foo@'a b' str%% is invalid. %%@%% without **default** infers the default from **type**. Without %%@...%% part the template fails if the input variable is unset. If input is unset or %%null%% and %%@%% is blank or %%null%% then **type** and **cond** checks are bypassed and the value is left at the type's default (%%@%% alone) or %%null%% (%%@null%%).
+  * **type** specifies expected variable type or its alias (below). Without %%!%% the value is attempted to be coerced if its type differs. If input variable's type differs and couldn't be coerced - an error occurs if %%@%% part is omitted, else a warning occurs and the default value is used (and checked according to **cond**).
+  * **of** starts a type hint/comment lasting until next whitespace (ignored). Examples: %%$>ids array of int%%, %%$>user object of Model\User%%.
+  * **if** and **cond** specify additional check(s) as PHP code lasting until line end. The code is evaluated within the same context of the template, failing if on loosy false. Without **if** the %%$inputVar%% is prepended: %%$>url str !== ''%% is the same as %%$>url str if $url !== ''%% (ensuring %%(php)$url%% is not blank).
+
+**List of common types, aliases and implied defaults:**
+##
+    = any special type disabling type checking
+    = boolean also %%bool%%; default is %%(php)false%%
+    = integer also %%int%%, %%num%%; default is %%(php)0%%
+    = float also %%double%%, %%real%%; default is %%(php)0.0%%
+    = string also %%str%%; default is %%(php)''%%
+    = array also %%hash%%, %%map%%; default is %%(php)array()%%
+    = object also %%obj%%; default is %%(php)new stdClass%%
+    = callable note that not only closures are callable but also things like %%(php)'trim'%%, %%(php)['My', 'method']%% and %%(php)$obj%% (if implements %%(php)__invoke()%%)
+    = resource also %%res%%
+    = other %%null%%, %%scalar%%, %%dir%%, %%file%%, etc.
+##
+
+A "type" is a name for which a top-level PHP function %%(php)is_XXX($value)%% is defined. Types without defaults use %%(php)null%% as one.
+
+**List of coercion rules:**
+##
+    = bool if null or scalar: if string representation is one of %%(php)'' 0 1%% then %%(php)(bool) $value%%
+    = integer if null or //FILTER_VALIDATE_INT//: %%(php)(int) $value%%
+    = float if null or integer or //FILTER_VALIDATE_FLOAT//: %%(php)(float) $value%%
+    = string if null or scalar: %%(php)(string) $value%%
+##
+
+Other types and other cases of the listed types are not coercible and fail the input check.
+
+**Attention:** //FILTER_XXX// (of PHP [[php:filter_var]]()) trim their input so that %%(php)"\t123"%% is seen as a valid //int// and //float//.
+
 ==== $$=escape ====
 It's possible to escape the ((#variable)) assignment expressions by doubling the leading dollar symbol (%%$%%).
 
@@ -524,25 +570,43 @@ Tags in HTMLki are just like normal HTML tags with certain additions:
   1. ((#ts Shortcut tags)) - create %%(html)<input type="checkbox" name="autologin">%% from just %%(html)<checkbox "autologin">%%.
   1. ((#single Single tag convertions)) - automatic turning of %%(html)<link>%% into %%(html)<link />%% (even in XHTML) and of %%(html)<textarea rows=10 />%% back into %%(html)<textarea rows="10"></textarea>%%.
   1. ((#Loops)) - turns a tag into a container for a set of items and adds "else-if" and "else" branches to such tags.
-  1. ((#func Function calling)) - HTMLki tags (%%(html)<tag attr="value">%%) don't have to be defined in the HTML spec, they can be user-defined functions such as %%(html)<file "upload">%%, %%(html)<each $list>%% or %%(html)<include partials/sidebar>%%.
+  1. ((#func Function calling)) - HTMLki tags (%%(html)<tag attr="value">%%) don't have to be defined in the HTML spec, they can be user-defined functions such as %%(html)<file "upload">%%, %%(html)<each $list>%% or %%(html)<include "partials/sidebar">%%.
+
+By default all tags are single-line. If multi-line tags are enabled, the %%<a /))...'>%% below is treated as a single tag:
+%%(html)
+  <script>
+    if (s.match(/<a /)) {
+      s += '>'
+%%
+
+To avoid ambiguity in closing %%>%% detection, surround %%>%% with spaces to make it part of the attribute string:
+  1. %%<if a->b>%% is a single tag (a special exception)
+  1. %%<if a > b>%% is a single tag
+  1. %%<if a >= b>%% is a single tag
+  1. %%<if a>b>%% are a tag %%<if a>%% followed by plain text %%b>%%
+
 
 ==== ((#attr)) Attributes ====
 HTMLki extends HTML format for specifying tag attributes (%%(html)attr="value" second="yet another"%%) with the following:
   1. Array variables for ((#loops)) are specified after the tag name: %%(html)<div $array $another>%%
   1. ((#defattr Default attributes)) are specified the same way: %%(html)<img "src" "class">%%. They must go after array variables for tags not listed in **loopTags** config option: %%(html)<img $glyphs "src" $thumbs "class">%% **is not** the same as %%(html)<img "src" "class" $glyphs $thumbs>%% (loop won't be recognized) unless %%img%% is listed in **loopTags** - in this case both examples have the same effect.
-  1. After the above regular attributes can go.
+  1. After the above go regular attributes.
 
 **Regular attributes** are separated using spaces (just like in HTML) and generally have %%key=value%% form. However:
   1. The **key** part can be omitted creating an unnamed attribute which can be used by some ((#func tag functions)) (similar to passing parameters to functions by index in PHP: %%(php)foo('a1', $a2)%%).
   1. You can create unnamed attribute beginning with either %%$%% or %%"%% - to avoid confusion with ((#loops)) and ((#defattr default attributes)) use %%=$value...%% form (thus %%=%% is explicit but **key** is empty).
-    * //once the first such attribute is present you don't have to prefix all the following with %%=%% as loops/default attributes have to go before regular attributes and won't be recognized anyway.//
-  1. Both **key** and **value** parts can't contain spaces unless one of them or both are wrapped in quotes (again, just like in HTML but HTML only allows wrapping of values while HTMLki lets you wrap both): %%(html)<img src=controls/button.gif>%%, %%(html)<img src="templates/Calm Gray/button.gif">%%. Like ((#language)) strings such attributes can  contain variables or nested PHP expressions: %%(html)<radio "$checked">%% (contents of %%(php)$checked%% variable is used both as attribute name and value; if it's empty nothing will be output). Note that without the quotes this will pass a ((#loops list variable)).
+    * //once the first such attribute is present you don't have to prefix all the following with %%=%% as loops/default attributes have to go before regular attributes and won't be recognized at later positions anyway.//
+  1. Both **key** and **value** parts can't contain spaces unless one of them or both are wrapped in quotes (again, just like in HTML but HTML only allows wrapping of values while HTMLki lets you wrap both): %%(html)<img src=controls/button.gif>%%, %%(html)<img src="templates/Calm Gray/button.gif">%%. Like ((#language)) strings such attributes can contain variables or nested PHP expressions: %%(html)<radio "$checked">%% (contents of %%(php)$checked%% variable is used both as attribute name and value; if it's empty nothing will be output). Note that without the quotes this will pass a ((#loops list variable)).
     * //with usual tags keys are regular HTML attributes so spaces in them are not used; however, some ((#func user functions)) might use them.//
-  1. Similar to above: **key** and/or **value** can be wrapped in curly brackets (%%{ }%%) instead of quotes to execute custom PHP code. This works similar to ((#bracket+s)) construct (%%{ foo('bar') }%%). HTML symbols will be automatically quoted unless the opening bracket is immediately followed by an equality sign (%%=%%): %%(html)<img src={ urlOf('My Template', 'btn.gif') }>%% (spaces inside brackets are optional). More examples:
+    * watch out for unwanted substitutions: %%(html)<input pattern="^\d{4}$">%% - in order for %%{4}%% to be not treated as a code inset, double the opening bracket: %%^\d{{4}$%%.
+  1. Similar to above: **key** and/or **value** can be wrapped in curly brackets (%%{ }%%) instead of quotes to execute custom PHP code (must return a scalar, not an array). This works similarly to ((#bracket+s)) construct (%%{ foo('bar') }%%). HTML symbols will be automatically quoted unless the opening bracket is immediately followed by an equality sign (%%=%%): %%(html)<img src={ urlOf('My Template', 'btn.gif') }>%% (spaces inside brackets are optional). More examples:
     * %%(html)<radio { $checked ? 'checked' : '' }>%%
     * %%(html)<a {$anchorUsingName ? 'name' : 'id'}=$anthor>%% - this will output %%(html)<a name="some_anchor">%% if %%(php)$anchorUsingName%% is **true** and %%(html)<a id="some_anchor">%% if it's **false**
     * %%(html)<a attr={=$asIs}>%% - the value of %%(php)$asIs%% variable is inserted into %%attr%% attribute of %%(html)<a>%% tag but it's not escaped and thus if it contains %%"%% or other special symbol the markup will be broken.
-  1. If neither %%{ }%% nor %%"%% are used to wrap //key// or //value// they are processed as if wrapped in %%"%% but ending on a first whitespace character.
+    * %%(html)<input { $off ? 'autocomplete=off' : '' }>%% - likely an error as the string is used both as key and value producing %%(html)<input autocomplete="off=autocomplete=off">%%. Correct: %%(html)<input autocomplete={ $off ? 'off' : '' }>%%.
+    * most ((#funcs custom functions)) only support simple key format: %%(html)<each $list { ++$key }=...>%% would be given raw %%{ ++$key }%% as a string attribute, not incremented %%$key%%'s value.
+  1. If neither %%{ }%% nor %%"%% are used to wrap //key// or //value// they are processed as if wrapped in %%"%% but ending on a first whitespace or %%>%% character.
+    * %%(html)<input value=$obj->prop>%% - same as %%(php)<input value="<?=$obj- ?>">prop>%%. Correct: %%(html)<input value={ $obj->prop }>%% or %%(html)<input value="{ $obj->prop } and foo">%%.
 
 **Note:** HTML characters are ((#brackets escaped)) in substitutions. See also ((#attr tag attribute expansion)).
 
@@ -616,15 +680,15 @@ In some tags it's possible to define attributes given just their value. For exam
     = a %%new%% expands into %%(html)target="_blank"%%
     = button **type**: %%button%%, %%reset%%, %%submit%%; %%(html)type="button"%%, %%(html)value="1"%% are implied
     = command **type**: %%checkbox%%, %%command%%, %%radio%%
-    = input **type**: %%button%%, %%checkbox%%, %%file%%, %%hidden%%, %%image%%, %%password%%, %%radio%%, %%reset%%, %%submit%%, %%text%%; %%(html)type="text"%% is implied
+    = input **type**: %%button%%, %%checkbox%%, %%file%%, %%hidden%%, %%image%%, %%password%%, %%radio%%, %%reset%%, %%submit%%, %%text%%; %%selectonfocus%% is expanded into %%(html)onfocus="this.select()"%%; %%(html)type="text"%% is implied
     = keygen **keytype**: %%rsa%%, %%dsa%%, %%ec%%
-    = form **method**: %%get%%, %%post%%; %%file%%, %%upload%% and %%multipart%% are expanded into %%(html)enctype="multipart/form-data"%%; %%(html)method="post" accept-charset="utf-8"%% are implied
+    = form **method**: %%get%%, %%post%%; aliases %%file%%, %%upload%% and %%multipart%% are expanded into %%(html)enctype="multipart/form-data"%%; %%(html)method="post" accept-charset="utf-8"%% are implied
     = li **type**: %%disc%%, %%square%%, %%circle%%
     = link %%(html)rel="stylesheet"%% is implied
     = param **valuetype**: %%data%%, %%ref%%, %%object%%
     = script **xml:space**: %%preserve%%; %%(html) type="text/javascript"%% is implied
     = style %%(html) type="text/css"%% is implied
-    = textarea %%(html)cols="50" rows="5"%% are implied
+    = textarea %%selectonfocus%% is expanded into %%(html)onfocus="this.select()"%%; %%(html)cols="50" rows="5"%% are implied
 ##
 
 Also, the following attributes can be used in any tag:
@@ -718,9 +782,9 @@ Attributes defined in that tag take priority over such aliased attributes so tha
 
 Each function is given a %%(php)TagCall%% object with the list of given attributes, variables in the current template scope and other information.
 
-There are 3 tag forms: opening (%%(html)<tag>%%), closing (%%(html)</tag>%%) and single (%%(html)<tag />%%); by default they affect the resulting HTML tag form and the closing tag
+There are 3 tag forms: opening (%%(html)<tag>%%), closing (%%(html)</tag>%%) and single (%%(html)<tag />%%); by default they affect the resulting HTML tag form and the closing tag.
 
-If it's a block function (like %%(html)<each>%% or %%(html)<if>%%) it can return an array to be iterated over; each member is an array of  variables to be defined in each iteration. See also ((#loops)).
+If it's a block function (like %%(html)<each>%% or %%(html)<if>%%) it can return an array to be iterated over; each member is an array of variables to be defined in each iteration. See also ((#loops)).
 
 See also ((#funcs List of standard functions)).
 
@@ -757,6 +821,33 @@ When a non-traversable variable (neither an array nor an object implementing %%(
   </div>
 %%
 
+==== ((#boolsuf)) Boolean suffix ==
+Often you want to iterate once and only if the value is loosely true. For this, append %%?%% after the list variable:
+%%(html)
+  <div ${ isAuthenticated() }?>
+%%
+
+Equivalent to:
+%%(html)
+  <div ${ !!isAuthenticated() }>
+%%
+
+Or to:
+%%(php)
+  <?php if (!!isAuthenticated()) {?>
+    <div>
+%%
+
+Without %%?%% if %%(php)isAuthenticated()%% returns %%(php)0%% or %%(php)''%% the %%(html)<div>%% will be still output according to the ((#loops rules)). The question mark forces a boolean cast (using PHP rules) before array convertion, resulting in either 0 or 1 iterations and no ((#lv loop variables)).
+
+It works the same with variables: %%(html)<div $isAuth?>%%. Undefined variables trigger errors as usual.
+
+There must be no spaces before %%?%% or it will be treated as a separate attribute:
+%%(html)
+  <div ${ isAuthenticated() } ?>
+  <div $isAuth ?>
+%%
+
 ==== ((#lv)) Variables ====
 The following variables are defined after the loop has started iterating:
   * **$key_//prefix//** - key of list item being iterated over.
@@ -768,8 +859,15 @@ The following variables are defined after the loop has started iterating:
 
 //((#Prefix))// above stands for a string given to the tag along with the loop expression/variable. If it's empty then no separating underscore (%%_%%) is present.
 
+No variables are created if prefix is %%_%% or ((#boolsuf boolean suffix)) is used - such loops won't interfere with other loops' variables. In this example only //tbody//'s variables are created but //td//'s and //ul//'s are not:
+%%(html)
+  <tbody $rows>
+    <td $flag?>
+      <ul $_{ getItems() }>
+%%
+
 ==== Branching ====
-Each loop can contain zero or more //else// branches. Unless it's an ((#il implicit loop tag)) each loop must be terminated with a symmetrical %%(html)</endXXX>%% form where **XXX** must match the starting tag. If any of //else// branches having a list variable is looped ending **XXX** tag is output; otherwise it's not.
+Each loop can contain zero or more //else// branches. Unless it's an ((#il implicit loop tag)) each loop must be terminated with a symmetrical %%(html)</endXXX>%% form where **XXX** must match the starting tag. The ending **XXX** tag is output if both the accepted //else// branch and //end// had tag names: %%(html)<elseXXX>...</endXXX>%%.
 
 %%(html)
   <ul $menu>
@@ -821,6 +919,29 @@ Or:
 The difference between %%(html)</endul>%% and %%(html)</ul>%% is that the former ends looping and outputs the closing tag if at least one iteration had taken place while the latter always outputs the closing tag.
 
 Both %%(html)<else>%% and %%(html)<end>%% can omit the tag name - this is usually used with ((#funcs custom tags)) like //((#Each))// or //((#If))//. In this case no ending tag is output even if a list has been iterated over.
+
+HTMLki errors if opening tag doesn't match %%(html)<endXXX>%% tag (no such check is performed for non-list tags). The check is skipped for pairs ending on %%(html)</end>%% so it's recommended to use %%(html)</endXXX>%% or %%(html)</XXX>%% (for ((#funcs functions))) where possible:
+%%(html)
+  <each $a>
+    <if $key>
+      ...
+    </if>
+  </each>
+
+  <each $a>
+    <if $key>
+      ...
+    </endif>
+  </endeach>
+
+  <!-- it won't be detected if the opening <each> and <if> change places -->
+  <each $a>
+    <if $key>
+      ...
+    </end>
+  </end>
+%%
+
 
 ==== ((#sl)) Single-tag loops ====
 Sometimes it's convenient to ((#loop+s)) over a single tag instead of a ((#bl block)). Let's assume that we have an array of stylesheets:
@@ -876,18 +997,31 @@ You can still write regular HTML if you want which is equivalent to the code abo
 
 **Default list of single tags:** %%area%%, %%base%%, %%basefont%%, %%br%%, %%col%%, %%frame%%, %%hr%%, %%img%%, %%input%%, %%link%%, %%meta%%, %%param%% - plus these ((#funcs functions)): //((#Lang))//, //((#Include))//.
 
+
 == ((#funcs)) Standard functions ==
 
 === Include ===
 %%(html)
-  <include partials/sidebar>
+  <include "partials/sidebar" expanded=1 user>
 %%
 
-//Include// creates a new template and passes it the same variables defined by the time //Include// is called.
+//Include// creates a new template and passes it certain variables according to the given ((#attr regular attributes)).
+
+**Attribute syntax:**
+%%(html)
+  <include "..." [0]>
+  <include "..." [0 arrayvar] [[srcvar-]tplvar][=value] [...]>
+%%
+
+  * with no arguments passes the same variables defined by the time //Include// is called (like PHP's //include//)
+  * if the only argument is %%0%%, passes no variables
+  * if %%0%% is followed by an argument, that one argument is an array of values (its keys may be overridden by subsequent arguments)
+  * other arguments: %%var=val%% sets a scalar inside the template, %%src-tpl%% passes %%$src%% from this scope as %%$tpl%% to the template, %%tpl%% passes %%$tpl%% under the same name (like %%tpl-tpl%%)
+  * undefined variables generate a warning
 
 **((#Loop+s))ing form:**
 %%(html)
-  <include $list [$list_2 [...]] tpl_name>
+  <include $list [$list_2 [...]] "tpl_name" [attributes...]>
 %%
 
 Includes another template file as if its contents was directly placed at the point of %%(html)<include>%%.
