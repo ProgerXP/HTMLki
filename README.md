@@ -37,10 +37,11 @@ echo HTMLki\HTMLki::template(HTMLki\HTMLki::compile('<radio>'));
 
 ## Features
 
-HTMLki compiles into valid PHP code and thus has very small templating overhead. Any output is HTML-escaped **by default** so there's little chance of XSS.
+Because HTMLki is just HTML on steroids, any text editor with HTML/PHP syntax scheme gets highlighting right most of the time.
 
-In a nutshell, HTMLki imbues HTML with:
+HTMLki imbues HTML with:
 
+* XSS protection - output is HTML-escaped **by default**
 * [loops and conditions](http://squizzle.me/php/htmlki#loops) - like in the above example: `<ul $list>` and `<if $a == 3>`
 * [attribute magic](http://squizzle.me/php/htmlki#attr) - automatic expansion of `<form file>` into `<form enctype="multipart/form-data">`, `<div "span-6">` into `<div class="span-6">` and more
 * [tag magic](http://squizzle.me/php/htmlki#tags)
@@ -52,7 +53,8 @@ In a nutshell, HTMLki imbues HTML with:
 * [expressions and variables](http://squizzle.me/php/htmlki#brackets) - like `{ date('d.m.y') }`
 * [PHP code](http://squizzle.me/php/htmlki#php) - just as you guess: `<?='string'?>` - short PHP tags expanded automatically so you don't have to care about any particular `php.ini` settings
 * [function-tags](http://squizzle.me/php/htmlki#funcs) - in form of custom tags like `<include>`
-* most constructs can be escaped, such as `""Not a language."`, `{{ not_an_expr }` and `$$notAVar`.
+* [input checking](http://squizzle.me/php/htmlki#input) - clearly see what the template accepts: `$>currentPage@1 int <= $lastPage`
+* most constructs can be escaped, such as `""Not a language."`, `{{ not_an_expr }` and `$$notAVar`
 * this list is not complete - refer to the [documentation](http://squizzle.me/php/htmlki#syntax) for all enhancements
 
 The above doesn't require any additional integration code. However, you can tailor HTMLki into a markup ideal for your particular application by adding handlers for specific tags, attributes, etc.

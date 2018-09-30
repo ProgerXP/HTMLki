@@ -34,10 +34,12 @@ This is roughly equivalent to the following PHP code:
   <?php }?>
 %%
 
+
 == Features ==
-HTMLki compiles into valid PHP code and thus has very small templating overhead. Any output is HTML-escaped //by default// so there's little chance of ((WP:XSS)).
+Because HTMLki is just HTML on steroids, any text editor with HTML/PHP syntax scheme gets highlighting right most of the time.
 
 HTMLki imbues HTML with:
+  * ((WP:XSS)) protection - output is HTML-escaped //by default//
   * ((#loops loops and conditions)) - like in the above example: %%(html)<ul $list>%% or %%(html)<if $a == 3>%%
   * ((#attr attribute magic)) - automatic expansion of %%(html)<form file>%% into %%(html)<form enctype="multipart/form-data">%%, %%(html)<div "span-6">%% into %%(html)<div class="span-6">%% and ((#attr more))
   * ((#tags tag magic)):
@@ -49,12 +51,14 @@ HTMLki imbues HTML with:
   * ((#brackets expressions and variables)) - like %%(html){ date('d.m.y') }%%
   * ((#php PHP code)) - just as you guess: %%(php)<?='string'?>%% - short PHP tags expanded automatically so you don't have to care about any particular %%php.ini%% settings
   * ((#funcs function-tags)) - in form of custom tags like %%(html)<include>%%
-  * most constructs can be escaped, such as %%""Not a language."%%, %%{{ not_an_expr }%% and %%$$notAVar%%.
+  * ((#input)) checking - clearly see what the template accepts: %%$>currentPage@1 int <= $lastPage%%
+  * most constructs can be escaped, such as %%""Not a language."%%, %%{{ not_an_expr }%% and %%$$notAVar%%
   * this list is not complete - refer to ((#Syntax)) for all enhancements
 
 The above doesn't require any additional integration code. However, you can tailor HTMLki into a markup ideal for your particular application by adding handlers for specific tags, attributes, etc.
 
 For example, HTMLki can automatically expand %%src%%, %%href%% and %%action%% attributes into full URLs, or have tags like %%(html)<errors>%% that output the list of errors linked to some input field (textarea, selectbox, etc.).
+
 
 == Download ==
 **Grab the ((https://github.com/ProgerXP/HTMLki/archive/master.zip latest version here)).**
@@ -267,9 +271,8 @@ Line merging happens before all other processing and can be used with constructs
     string'?>
   "Hello, my dear \
     $user!"
-  { \
-    a(brace, form) \
-  }
+  { a(brace, \
+      form) }
 %%
 
 Equivalent to:
@@ -476,7 +479,7 @@ By convention, all checks for template's input variables are placed on top of th
 The shortest form is just %%$>someVar%% setting **type** to %%any%% and omitting all other parts.
 
   * **default** specifies the value used in case the input variable is unset. **default** lasts until next whitespace: %%$>number@rand()%16 int%% is fine but %%$>foo@'a b' str%% is invalid. %%@%% without **default** infers the default from **type**. Without %%@...%% part the template fails if the input variable is unset. If input is unset or %%null%% and %%@%% is blank or %%null%% then **type** and **cond** checks are bypassed and the value is left at the type's default (%%@%% alone) or %%null%% (%%@null%%).
-  * **type** specifies expected variable type or its alias (below). Without %%!%% the value is attempted to be coerced if its type differs. If input variable's type differs and couldn't be coerced - an error occurs if %%@%% part is omitted, else a warning occurs and the default value is used (and checked according to **cond**).
+  * **type** specifies expected variable type or its alias (below). Without %%!%% the value is attempted to be coerced if its type differs (making %%!%% similar to PHP's //strict_types// declaration). If input variable's type differs and couldn't be coerced - an error occurs if %%@%% part is omitted, else a warning occurs and the default value is used (and checked according to **cond**).
   * **of** starts a type hint/comment lasting until next whitespace (ignored). Examples: %%$>ids array of int%%, %%$>user object of Model\User%%.
   * **if** and **cond** specify additional check(s) as PHP code lasting until line end. The code is evaluated within the same context of the template, failing if on loosy false. Without **if** the %%$inputVar%% is prepended: %%$>url str !== ''%% is the same as %%$>url str if $url !== ''%% (ensuring %%(php)$url%% is not blank).
 
@@ -603,10 +606,11 @@ HTMLki extends HTML format for specifying tag attributes (%%(html)attr="value" s
     * %%(html)<radio { $checked ? 'checked' : '' }>%%
     * %%(html)<a {$anchorUsingName ? 'name' : 'id'}=$anthor>%% - this will output %%(html)<a name="some_anchor">%% if %%(php)$anchorUsingName%% is **true** and %%(html)<a id="some_anchor">%% if it's **false**
     * %%(html)<a attr={=$asIs}>%% - the value of %%(php)$asIs%% variable is inserted into %%attr%% attribute of %%(html)<a>%% tag but it's not escaped and thus if it contains %%"%% or other special symbol the markup will be broken.
-    * %%(html)<input { $off ? 'autocomplete=off' : '' }>%% - likely an error as the string is used both as key and value producing %%(html)<input autocomplete="off=autocomplete=off">%%. Correct: %%(html)<input autocomplete={ $off ? 'off' : '' }>%%.
+    * %%(html)<input { $off ? 'autocomplete=off' : '' }>%% - likely an error as the string is used both as key and value producing %%(html)<input autocomplete="off=autocomplete=off">%%. Correct: %%(html)<input autocomplete={ $off ? 'off' : null }>%%.
     * most ((#funcs custom functions)) only support simple key format: %%(html)<each $list { ++$key }=...>%% would be given raw %%{ ++$key }%% as a string attribute, not incremented %%$key%%'s value.
   1. If neither %%{ }%% nor %%"%% are used to wrap //key// or //value// they are processed as if wrapped in %%"%% but ending on a first whitespace or %%>%% character.
-    * %%(html)<input value=$obj->prop>%% - same as %%(php)<input value="<?=$obj- ?>">prop>%%. Correct: %%(html)<input value={ $obj->prop }>%% or %%(html)<input value="{ $obj->prop } and foo">%%.
+    * %%(html)<input value=$obj->prop>%% - same as %%(php)<input value="<?=$obj-?>">prop>%%. Correct: %%(html)<input value={ $obj->prop }>%% or %%(html)<input value="{ $obj->prop } and foo">%%.
+    * %%(html)<input value=$a['k']>%% - same as %%(php)<input value="<?=$a?>['k']">%%. Correct: %%(html)<input value={ $a['k'] }>%% or %%(html)<input value="{ $a['k'] } and foo">%% (but not %%(html)value="$a[k]"%% or %%(html)value="$a['k']"%% as these are not PHP strings).
 
 **Note:** HTML characters are ((#brackets escaped)) in substitutions. See also ((#attr tag attribute expansion)).
 
@@ -1018,6 +1022,12 @@ You can still write regular HTML if you want which is equivalent to the code abo
   * if %%0%% is followed by an argument, that one argument is an array of values (its keys may be overridden by subsequent arguments)
   * other arguments: %%var=val%% sets a scalar inside the template, %%src-tpl%% passes %%$src%% from this scope as %%$tpl%% to the template, %%tpl%% passes %%$tpl%% under the same name (like %%tpl-tpl%%)
   * undefined variables generate a warning
+
+Example of setting a non-scalar using a temporary variable (%%my/tpl%% gets %%(php)$theNameInside%%):
+%%(html)
+  $=a   array(1, 2, 3)
+  <include "my/tpl" a-theNameInside>
+%%
 
 **((#Loop+s))ing form:**
 %%(html)
