@@ -63,7 +63,7 @@ For example, HTMLki can automatically expand %%src%%, %%href%% and %%action%% at
 == Download ==
 **Grab the ((https://github.com/ProgerXP/HTMLki/archive/master.zip latest version here)).**
 
-**HTMLki is hosted on ((https://github.com/ProgerXP/HTMLki GitHub)).** Report any ((https://github.com/ProgerXP/HTMLki/issues issues)) and make pull requests there.--- Additionally, you can just drop a line here in the ((#comments)).
+**HTMLki is hosted on ((https://github.com/ProgerXP/HTMLki GitHub)).** Report any ((https://github.com/ProgerXP/HTMLki/issues issues)) and make pull requests there.
 
 HTMLki is released **in public domain**. I would appreciate attribution and a backlink, though.
 
@@ -71,7 +71,7 @@ HTMLki is released **in public domain**. I would appreciate attribution and a ba
 == Syntax ==
 HTMLki extends HTML syntax similar to the way ((http://lesscss.org LESS)) extend CSS. Any HTML file is a valid HTMLki file but not vice-versa.
 
-This section describes the entire HTMLki language. It's huge in the details but like a nutshell in the core.
+This section describes the entire HTMLki language. It's huge in the details but they stem from a few simple concepts.
 
 === ((#brackets)) { expr } ===
 Expression that is evaluated as PHP code and its result output with the following HTML characters quoting ([[php:htmlspecialchars]] with %%ENT_COMPAT%%):
@@ -481,7 +481,7 @@ The shortest form is just %%$>someVar%% setting **type** to %%any%% and omitting
   * **default** specifies the value used in case the input variable is unset. **default** lasts until next whitespace: %%$>number@rand()%16 int%% is fine but %%$>foo@'a b' str%% is invalid. %%@%% without **default** infers the default from **type**. Without %%@...%% part the template fails if the input variable is unset. If input is unset or %%null%% and %%@%% is blank or %%null%% then **type** and **cond** checks are bypassed and the value is left at the type's default (%%@%% alone) or %%null%% (%%@null%%).
   * **type** specifies expected variable type or its alias (below). Without %%!%% the value is attempted to be coerced if its type differs (making %%!%% similar to PHP's //strict_types// declaration). If input variable's type differs and couldn't be coerced - an error occurs if %%@%% part is omitted, else a warning occurs and the default value is used (and checked according to **cond**).
   * **of** starts a type hint/comment lasting until next whitespace (ignored). Examples: %%$>ids array of int%%, %%$>user object of Model\User%%.
-  * **if** and **cond** specify additional check(s) as PHP code lasting until line end. The code is evaluated within the same context of the template, failing if on loosy false. Without **if** the %%$inputVar%% is prepended: %%$>url str !== ''%% is the same as %%$>url str if $url !== ''%% (ensuring %%(php)$url%% is not blank).
+  * **if** and **cond** specify additional check(s) as PHP code lasting until line end. The code is evaluated within the same context of the template, failing if on loose false. Without **if** the %%$inputVar%% is prepended: %%$>url str !== ''%% is the same as %%$>url str if $url !== ''%% (ensuring %%(php)$url%% is not blank).
 
 **List of common types, aliases and implied defaults:**
 ##
@@ -516,21 +516,12 @@ It's possible to escape the ((#variable)) assignment expressions by doubling the
 
 Note that the assignment is only recognized when it occurs on a line by itself so you don't need to escape it if it doesn't (and escaping won't be removed there).
 
-**Examples:**
+**Example:**
 %%(html)
   This is not an assignment:
 $$=var
 
 Inline escaped dollar symbol: $$=var
-%%
-
-%%(html)
-  $=multilineVar
-  Content goes here...
-  $$^multilineVar
-  ...and continues here as well.
-  Now it ends:
-  $^multilineVar
 %%
 
 Equivalent to:
@@ -541,6 +532,17 @@ Equivalent to:
   Inline escaped dollar symbol: <?='$=var'?>
 %%
 
+Another example:
+%%(html)
+  $=multilineVar
+  Content goes here...
+  $$^multilineVar
+  ...and continues here as well.
+  Now it ends:
+  $^multilineVar
+%%
+
+Equivalent to:
 %%(php)
   <?ob_start()?>
   Content goes here...
@@ -567,11 +569,11 @@ PHP code snippets can be used along with normal HTML or HTMLki constructs; for e
 === Tags ===
 Tags in HTMLki are just like normal HTML tags with certain additions:
   1. ((#defattr Default attribute names)) - lets you omit %%src=%% for images, %%action=%% for forms, %%class=%% for other tags, etc.
-  1. ((#flagattr Flag attributes)) - it's possible to specify %%readonly%%, %%checked%%, %%submit%% (%%(html)type="submit"%% with a value alone and the attribute name will be guessed.
+  1. ((#flagattr Flag attributes)) - it's possible to specify %%readonly%%, %%checked%%, %%submit%% (%%(html)type="submit"%%) with a value alone and the attribute name will be guessed.
   1. ((#attr Attribute expansion)) - lets you use PHP variables or expressions in attribute names and values and omit surrounding quotes around attribute values: %%(html)<radio "radio {$i % 2 ? 'even' : 'odd'}" checked=checked id=$ctlID>%%.
   1. ((#Multitags)) - lets you avoid %%(html)<table><tbody><tr class="odd">%% by using %%(html)<table/tbody/tr "odd">%%. Works for closing tags as well.
   1. ((#ts Shortcut tags)) - create %%(html)<input type="checkbox" name="autologin">%% from just %%(html)<checkbox "autologin">%%.
-  1. ((#single Single tag convertions)) - automatic turning of %%(html)<link>%% into %%(html)<link />%% (even in XHTML) and of %%(html)<textarea rows=10 />%% back into %%(html)<textarea rows="10"></textarea>%%.
+  1. ((#single Single tag convertions)) - automatic turning of %%(html)<link>%% into %%(html)<link />%% in XHTML and of %%(html)<textarea rows=10 />%% back into %%(html)<textarea rows="10"></textarea>%% in XHTML/HTML5.
   1. ((#Loops)) - turns a tag into a container for a set of items and adds "else-if" and "else" branches to such tags.
   1. ((#func Function calling)) - HTMLki tags (%%(html)<tag attr="value">%%) don't have to be defined in the HTML spec, they can be user-defined functions such as %%(html)<file "upload">%%, %%(html)<each $list>%% or %%(html)<include "partials/sidebar">%%.
 
@@ -702,7 +704,7 @@ Also, the following attributes can be used in any tag:
 ##
 
 ==== Multitags ====
-Slash symbol (%%/%%) is used to separate multiple tag names inside a single tag construct. All attributes are related to the last tag in the chain. Preceding tags cannot be given attributes using this form; however, their ((#implied)) attributes (e.g. %%(html)method="post"%% for %%(html)<form>%%) are output.
+Slash symbol (%%/%%) is used to separate multiple tag names inside a single tag construct. All attributes are related to the last tag in the chain. Preceding tags cannot be given attributes using this form; however, their ((#shorthands implied attributes)) (e.g. %%(html)method="post"%% for %%(html)<form>%%) are output.
 
 **Example:**
 %%(html)
@@ -763,7 +765,7 @@ Equivalent to:
 
 This creates complete aliases so ((#defattr default attributes)), ((#flagattr flags)), etc. can be used with these shortcuts as well.
 
-Attributes defined in that tag take priority over such aliased attributes so that %%(html)<get "settings" method=post>%% becomes %%<form method="post" action="settings">%%.
+Attributes defined in that tag take priority over such aliased attributes so that %%(html)<get "settings" method=post>%% becomes %%(html)<form method="post" action="settings">%%.
 
 **List of shortcut tags:**
 ##
@@ -883,7 +885,7 @@ Each loop can contain zero or more //else// branches. Unless it's an ((#il impli
   </endul>
 %%
 
-FOr this reason all //else// branches with list(s) must have the same opening tag (%%elseul%% above) or tag nesting will be broken. For example:
+For this reason all //else// branches with list(s) must have the same opening tag (%%elseul%% above) or tag nesting will be broken. For example:
 %%(html)
   <ul $menu>
     ...
@@ -961,7 +963,7 @@ We can output them all using this line:
   <link $styles "$item" rel=$key_styles />
 %%
 
-//Even though this looks like XHTML tags the presense of trailing %%/%% is controlled by HTMLki and can be enabled or disabled using its preferences without affecting the source template.//
+//Even though this looks like a XHTML tag the presence of trailing %%/%% is controlled by HTMLki and can be enabled or disabled using its preferences without affecting the original template.//
 
 ==== ((#bl)) Block loops ====
 Unlike ((#sl single-tag loops)) block loops operate on an arbitrary chunk of code wrapped into %%(html)<tag>...</endtag>%% pair. ((#lv Regular variables)) are defined both inside these blocks and after them, although the latter should be considered an undesirable side-effect and might be changed in future.
