@@ -1,6 +1,6 @@
 <?php namespace HTMLki;
 
-class Object {
+class Configurable {
   protected $config;          //= Config
   protected $originalConfig;  //= Config, null
 
