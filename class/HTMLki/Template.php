@@ -128,7 +128,7 @@ class Template extends Configurable
   }
 
   function email($email) {
-    $replaces = ['.' => '&#46;', '@' => '&#x40;'];
+    static $replaces = ['.' => '&#46;', '@' => '&#x40;'];
     return strtr($email, $replaces);
   }
 
@@ -770,6 +770,8 @@ class Template extends Configurable
     if (is_array($str)) {
       foreach ($str as &$s) { $s = $this->escape($s, $quotes, $doubleEncode); }
     } else {
+      $quotes |= ENT_SUBSTITUTE;
+      $this->config->xhtml or $quotes |= ENT_HTML5;
       return htmlspecialchars($str, $quotes, $this->config->charset, $doubleEncode);
     }
   }

@@ -289,6 +289,24 @@ class Config {
   //= callable ($name, Template $tpl)
   public $listVariable;
 
+  function __construct(array $options = null) {
+    $options and $this->assign($options);
+  }
+
+  function assign(array $options) {
+    foreach ($options as $name => $value) {
+      $this->$name = $value;
+    }
+  }
+
+  function makeCompiler($str) {
+    return new Compiler($this, $str);
+  }
+
+  function makeTemplate() {
+    return new Template($this);
+  }
+
   function defaultsOf($tag) {
     return $this->mergedOf($tag, 'defaults');
   }

@@ -20,7 +20,7 @@ class HTMLki {
   // function ()                                  - return default config (not its copy)
   static function config($return = null, Config $new = null) {
     if (is_string($return)) {
-      if ("$return" === '') {
+      if ($return === '') {
         $return = &static::$config;
       } else {
         $return = &static::$configs[$return];
@@ -92,7 +92,6 @@ class HTMLki {
     }
   }
 
-  // $separ must be single character.
   static function split($separ, $str) {
     return explode($separ, $str, 2) + ['', null];
   }
