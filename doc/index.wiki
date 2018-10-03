@@ -452,7 +452,7 @@ Without defining %%chk%% as a flag attribute its value won't be treated as a boo
   <foo someattr="">
 %%
 
-=== $>input@checking ==
+==== $>input@checking ==
 A default template is an amorphous blob with no input semantics - it takes what is given and in whatever form. Input checking is used to make a template more standalone, more robust to changes outside of it and have a clearly defined interface.
 
 Example:
@@ -510,6 +510,77 @@ A "type" is a name for which a top-level PHP function %%(php)is_XXX($value)%% is
 Other types and other cases of the listed types are not coercible and fail the input check.
 
 **Attention:** //FILTER_XXX// (of PHP [[php:filter_var]]()) trim their input so that %%(php)"\t123"%% is seen as a valid //int// and //float//.
+
+==== $+compartment ====
+Compartments are regular variables that are automatically passed between connected templates while accumulating values. Typical examples are "styles" and "scripts" on a webpage - one template may add the styles it depends on, another template - another set of styles until the final template outputs these compartments to the appropriate places on the page (%%(html)<head>%% and %%(html)<body>%%).
+
+A compartment variable is defined using a syntax similar to ((#multi))-line assignment, terminating with a %%$+var@key%% line. If %%key%% is set new item is created only if %%(php)$var%% has no such key or it's null. %%(php)$var%% is automatically created as or converted to an array.
+
+Two main ((#func functions)) power this mechanism: 
+
+  * //((#Include))// merges compartments of the included template with the calling template's
+  * //((#Rinclude))// takes compartments from the calling template without changing them
+
+**Note:** if there's no output between the two lines the variable is prepared but no item is created:
+%%(html)
+  $=head
+  $+head
+%%
+
+Roughly equivalent to this PHP 7.0+ code:
+%%(php)
+  $head = (array) $head ?? [];
+%%
+
+==== Example ====
+Let's consider this "main" template (called by a frontend script/controller with page-specific variables):
+%%(html)
+  $=head
+    <link "this-page-styles.css">
+  $+head
+
+  <?var_dump($head)?>
+
+  <table $rows>
+    <include "inner">
+  </endtable>
+
+  <?var_dump($head)?>
+
+  <rinclude "outer">
+%%
+
+The first %%(php)var_dump()%% indicates that %%(php)$head%% is an array with at least one member: %%(php)'<link href="..." ...>'%%. If this template has been //((#Rinclude))//'d by some other, %%(php)$head%% may contain more items.
+
+Example of the %%inner%% template:
+%%(html)
+  <tr>
+    <td>$item</td>
+  </tr>
+
+  $=head
+    <script "super-table.js">
+  $+head@super-table
+%%
+
+The second %%(php)var_dump()%% indicates that %%(php)$head%% has at least two members now: the old %%(php)'<link ...>'%% and a new %%(php)'<script src="..." ...>'%%. However, even if %%inner%% is included many times there will be only one %%script%% entry because of the key used: %%@super-table%%.
+
+**Note:** as a rule, %%@key%% must be unique across all connected templates - if values for this key are different it's hard to predict which version will survive multiple inclusions. 
+
+The %%outer%% template might start with this snippet:
+%%(html)
+  $>head@   array
+  <!DOCTYPE html>
+  <html>
+    <head>  
+      <each $head>
+        {= $item }
+      </each>
+      <!-- or even just: -->
+      {= join $head }
+%%
+
+The ((#input)) checking line is optional and enforces %%(php)$head%%'s type as well as sets its default value (empty array).
 
 ==== $$=escape ====
 It's possible to escape the ((#variable)) assignment expressions by doubling the leading dollar symbol (%%$%%).
@@ -1011,7 +1082,7 @@ You can still write regular HTML if you want which is equivalent to the code abo
   <include "partials/sidebar" expanded=1 user>
 %%
 
-//Include// creates a new template and passes it certain variables according to the given ((#attr regular attributes)).
+//Include// creates a new template, passes it certain variables according to the given ((#attr regular attributes)) and merges its ((#compartment)) variables on return.
 
 **Attribute syntax:**
 %%(html)
@@ -1037,6 +1108,17 @@ Example of setting a non-scalar using a temporary variable (%%my/tpl%% gets %%(p
 %%
 
 Includes another template file as if its contents was directly placed at the point of %%(html)<include>%%.
+
+=== Rinclude ===
+%%(html)
+  $=body
+    <h1>Welcome</h1>
+  $+body
+
+  <rinclude "page">
+%%
+
+//Reverse include// - the same as //((#Include))// except that ((#compartment)) variables are passed forward to the included script and are not merged on return.
 
 === Each ===
 %%(html)
