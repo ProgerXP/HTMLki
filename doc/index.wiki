@@ -390,7 +390,7 @@ Equivalent to:
 %%
 
 ==== $=attribute@tag ====
-When variable name is followed with an **at symbol** (%%@%%) it sets either a ((#flagattr flag attribute)) or a ((#shorthand+s)) for given tag. Tag can be empty to set global flag attribute or shorthand - for example, %%$=attr@ disabled%% sets %%disabled%% ((#flagattr flag)) attribute for all tags, such as:
+When variable name is followed by an **at symbol** (%%@%%) it sets either a ((#flagattr flag attribute)) or a ((#shorthand+s)) for given tag. Tag can be empty to set global flag attribute or shorthand - for example, %%$=attr@ disabled%% sets %%disabled%% ((#flagattr flag)) attribute for all tags, such as:
   * %%(html)<input disabled>%% -> %%(html)<input disabled="disabled">%%
   * %%(html)<button disabled>%% -> %%(html)<button disabled="disabled">%%
 
@@ -573,7 +573,7 @@ Tags in HTMLki are just like normal HTML tags with certain additions:
   1. ((#attr Attribute expansion)) - lets you use PHP variables or expressions in attribute names and values and omit surrounding quotes around attribute values: %%(html)<radio "radio {$i % 2 ? 'even' : 'odd'}" checked=checked id=$ctlID>%%.
   1. ((#Multitags)) - lets you avoid %%(html)<table><tbody><tr class="odd">%% by using %%(html)<table/tbody/tr "odd">%%. Works for closing tags as well.
   1. ((#ts Shortcut tags)) - create %%(html)<input type="checkbox" name="autologin">%% from just %%(html)<checkbox "autologin">%%.
-  1. ((#single Single tag convertions)) - automatic turning of %%(html)<link>%% into %%(html)<link />%% in XHTML and of %%(html)<textarea rows=10 />%% back into %%(html)<textarea rows="10"></textarea>%% in XHTML/HTML5.
+  1. ((#single Single tag convertions)) - automatic turning of %%(html)<link>%% into %%(html)<link />%% in XHTML and of %%(html)<textarea rows=10 />%% into %%(html)<textarea rows="10"></textarea>%% in XHTML/HTML 5.
   1. ((#Loops)) - turns a tag into a container for a set of items and adds "else-if" and "else" branches to such tags.
   1. ((#func Function calling)) - HTMLki tags (%%(html)<tag attr="value">%%) don't have to be defined in the HTML spec, they can be user-defined functions such as %%(html)<file "upload">%%, %%(html)<each $list>%% or %%(html)<include "partials/sidebar">%%.
 

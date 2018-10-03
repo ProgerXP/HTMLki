@@ -37,10 +37,16 @@ class Config {
   //   if (s.match(/<a /)) { (ln) s += '>'
   public $multilineTags = false;
 
+  // Non-single tags when used as <... /> get expanded to <...></...>. Single tags don't require '/' making <...> the same as <... /> (like <br> = <br /> in HTML 5).
   public $singleTags = ['area', 'base', 'basefont', 'br', 'col', 'frame',
                         'hr', 'img', 'input', 'link', 'meta', 'param',
-                        'lang', 'include'];
+                        'lang', 'include', 'rinclude'];
 
+  // For these closing tags the "end" prefix is implied and </...> is the same
+  // as </end...>. If a tag can be both looping and not, it shouldn't be listed
+  // here. If a tag can be a non-looping single-tag or a looping regular tag,
+  // then it can be listed since the <... /> form is unambiguous and requires
+  // no end tag.
   public $loopTags = ['each', 'if'];
 
   // If true, all tags are always given get_defined_vars(). If false, all tags
@@ -48,7 +54,7 @@ class Config {
   // all vars while others receive selective vars: <$variable> tags and tags with
   // { code } always get all vars, tags with $interpolations get only those
   // $vars, tags with neither get no vars (fastest).
-  public $grabAllVarsTags = ['if', 'include', 'lang'];
+  public $grabAllVarsTags = ['if', 'include', 'rinclude', 'lang'];
 
   // If set no guessing will be done to figure used variables for any expressions
   // including <tags> (above), "lang" and $>input@vars - they all will receive
@@ -60,7 +66,13 @@ class Config {
   // putting extract() over each single tag call is performance-unwise. If this
   // is true, all tags are extracted, otherwise is an array of tag names to
   // extract. Tags with <t $list>, $loopTags and <$var> tags are always extracted.
-  public $extractTags = [];
+  public $extractTags = ['include'];
+
+  // If true collects actual variable state before returning from the template
+  // (can pollute it with many temporary variables); can be retrieved with
+  // vars() as usual. If 'compartment' collects only marked compartment
+  // variables. If false doesn't collect any.
+  public $grabFinalVars = 'compartment';
 
   // Format is like $extractTags. Control if tags that are not looping, branching,
   // shortcut tags (defined in $tags) and have no parameters are output <as> </is>.
@@ -282,8 +294,9 @@ class Config {
   //= callable ($str, array $format)
   public $language;
 
-  // Returns string (path to the compiled template) or Template.
-  //= callable ($template, Template $parent, TagCall $call).
+  // Returns string (path to the compiled template) or an IncludeTemplate (with
+  // set $call->vars).
+  //= callable ($template, TagCall $call, Template $parent).
   public $template;
 
   //= callable ($name, Template $tpl)

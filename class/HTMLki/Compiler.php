@@ -81,10 +81,19 @@ class Compiler extends Configurable {
       $this->warning("Unterminated \$list tag$s: $tags.");
     }
 
+    if ($this->config->grabFinalVars) {
+      $self = $this->config->selfVar;
+      $which = $this->config->grabFinalVars === 'compartment' 
+        ? "compact(\${$self}->getCompartmentVarNames())"
+        : 'get_defined_vars()';
+      $code = "\${$self}->vars($which)";
+      $str .= $this->rawPhp($code);
+    }
+
     $str = strtr($str, $this->raw);
 
     if ($this->config->addLineBreaks) {
-      $regexp = '~^(.+(?:Tag|>lang)\(.+?)(\?>)(\r?\n)~m'.$this->config->regexpMode;
+      $regexp = '~^(.+(?:Tag|>lang)\(.+?)(\?'.'>)(\r?\n)~m'.$this->config->regexpMode;
       $str = preg_replace_callback($regexp, function ($match) {
         list(, $code, $ending, $eoln) = $match;
         return $code.'; echo "'.addcslashes($eoln, "\r\n").'"'.$ending.$eoln;
@@ -125,7 +134,7 @@ class Compiler extends Configurable {
       $code = "php $code";
     }
 
-    return $this->raw("<?$code?>", $src);
+    return $this->raw("<?$code?".">", $src);
   }
 
   // For evaluateStr().
@@ -177,7 +186,7 @@ class Compiler extends Configurable {
 
   // <?...? >
   protected function compile_php(&$str) {
-    return $this->replacing(__FUNCTION__, '<\?(php\b|=)?([\s\S]+?)\?>', $str);
+    return $this->replacing(__FUNCTION__, '<\?(php\b|=)?([\s\S]+?)\?'.'>', $str);
   }
 
   protected function match_php($match) {
@@ -187,11 +196,11 @@ class Compiler extends Configurable {
     return $this->rawPhp(rtrim($code, ';'));
   }
 
-  // $=...   $$=...   also >, ^ and *
+  // $=...   $$=...   also > ^ * +
   protected function compile_varSet(&$str) {
     $ws = '[ \t]';
     $id = '[a-zA-Z_]\w*';
-    $regexp = "~^($ws*\\$)(\\$*)(([=>^*])($id)(@(?:\S*)?)?($ws+.*)?)(\r?\n|$)()~m";
+    $regexp = "~^($ws*\\$)(\\$*)(([=>^*+])($id)(@(?:\S*)?)?($ws+.*)?)(\r?\n|$)()~m";
 
     return $this->replacing(__FUNCTION__, $regexp, $str);
   }
@@ -200,7 +209,7 @@ class Compiler extends Configurable {
     list(, $head, $escape, $body, $type, $var, $tag, $value, $eoln) = $match;
     // .* matches \r (but not \n if not in /s mode).
     $value = trim($value);
-    $eoln = $this->config->addLineBreaks ? "\r\n" : '';
+    $this->config->addLineBreaks or $eoln = '';
     $self = $this->config->selfVar;
 
     if ($escape) {
@@ -236,6 +245,23 @@ class Compiler extends Configurable {
     } elseif ($type === '*' and $value !== '') {
       $value = rtrim($value, ';');
       $code = "echo \${$self}->escape($$var = $value)";
+    } elseif ($type === '+') {
+      // Add new item to the compartment:
+      //   $=var
+      //   ...
+      //   $+var[@key]
+      // Only mark var as a compartment, creating it as [] if unset:
+      //   $=var
+      //   $+var
+      // Process items in the compartment:
+      //   <each $var> ... e.g. { join $item } </each>
+      //   use  $>var@ array  to pre-create an optional compartment variable 
+      $tag = $this->quote(substr($tag, 1));
+      strlen($tag) and $tag = "'$tag'";
+      $code = "isset($$var) or $$var = [];".
+              "is_array($$var) or $$var = (array) $$var;".
+              "ob_get_length() and \${$var}[$tag] = ob_get_clean();".
+              "\${$self}->markAsCompartments(['$var']);";
     } else {
       $func = $type === '^' ? 'clean' : 'flush';
       $code = "$$var = ob_get_$func()";
@@ -294,7 +320,7 @@ class Compiler extends Configurable {
     $attr = static::wrappedRegExp()."|->|$ws>=?$ws|[^>$mul\\r\\n]";
 
     $quoted = static::quotedRegExp();
-    $regexp = "<(/?)($quoted|[$\\w/]+)($ws+($attr)*|/)?>()";
+    $regexp = "<(/?)($quoted|[$\\w/]+)($ws+($attr)*|/)?".">()";
     return $this->replacing(__FUNCTION__, $regexp, $str);
   }
 

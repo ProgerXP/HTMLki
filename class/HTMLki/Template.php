@@ -1,7 +1,7 @@
 <?php namespace HTMLki;
 
 class Template extends Configurable
-    implements TemplateEnv, \ArrayAccess, \Countable {
+    implements TemplateEnv, IncludeTemplate, \ArrayAccess, \Countable {
   // Populated when Config->$debugEval is set.
   //= array ('eval_str();', array $vars, Template $tpl, $evalResult, str $output)
   static $lastEval;
@@ -10,10 +10,7 @@ class Template extends Configurable
   protected $file;            //= null, string
 
   protected $vars = [];       //= hash
-
-  protected $strParseVars;
-  protected $strParseEscapeExpr;
-  protected $strParseValues;
+  protected $compartments = [];   //= hash of var name => null
 
   function __construct(Config $config) {
     $this->config = $config;
@@ -25,6 +22,8 @@ class Template extends Configurable
     return $this;
   }
 
+  // It's more performance-wise to load a file rather than read that file and
+  // load a string because of PHP opcache.
   function loadFile($file) {
     $this->file = $file;
     $this->str = null;
@@ -45,6 +44,10 @@ class Template extends Configurable
 
   function isFile() {
     return isset($this->file);
+  }
+
+  function compiledStr() {
+    return $this->isFile() ? file_get_contents($this->file) : $this->str;
   }
 
   function offsetExists($var) {
@@ -84,14 +87,14 @@ class Template extends Configurable
   //? add('varname', 3.14)
   //? add('varname', true)
   //? add('varname')
-  //? add(['varname' => true])
   function add($var, $value = true) {
-    if (is_array($var)) {
-      $this->vars = $var + $this->vars;
-    } elseif ($var) {
-      $this->vars[$var] = $value;
-    }
+    $this->vars[$var] = $value;
+    return $this;
+  }
 
+  //? addVars(['varname' => true])
+  function addVars(array $vars) {
+    $this->vars = $vars + $this->vars;
     return $this;
   }
 
@@ -122,6 +125,21 @@ class Template extends Configurable
     return $this;
   }
 
+  function getCompartmentVarNames() {
+    return array_keys($this->compartments);
+  }
+
+  // This returns only previously assigned vars' values, not current values in
+  // a running template.
+  function getCompartments() {
+    return array_intersect_key($this->vars, $this->compartments);
+  }
+
+  function markAsCompartments(array $vars) {
+    $this->compartments += array_flip($vars);
+    return $this;
+  }
+
   function mailto($email, $subject = '', $extra = '') {
     $subject and $subject = "?subject=".rawurlencode($subject);
     return '&#109;a&#x69;l&#x74;&#111;:'.$this->email($email).$subject.$extra;
@@ -142,7 +160,9 @@ class Template extends Configurable
     ${$this->config->selfVar} = $this;
 
     ob_start();
-    isset($this->file) ? include($this->file) : eval('?>'.$this->str);
+    // Having a raw closing PHP tag even inside a string breaks highlighting in
+    // some editors.
+    isset($this->file) ? require($this->file) : eval('?'.'>'.$this->str);
     return ob_get_clean();
   }
 
@@ -183,49 +203,41 @@ class Template extends Configurable
 
   // $...    $$...   {...}   {{...
   function parseStr($str, array &$vars, $escapeExpr = false) {
-    $this->strParseValues = [];
+    $values = [];
 
     if (strpbrk($str, '${') !== false) {
       $regexp = Compiler::inlineRegExp().'|'.Compiler::braceRegExp('{', '}');
       $regexp = "~$regexp~".$this->config->regexpMode;
 
-      $this->strParseVars = $vars;
-      $this->strParseEscapeExpr = $escapeExpr;
-      $str = preg_replace_callback($regexp, [$this, 'strParser'], $str);
+      $str = preg_replace_callback($regexp, function ($match) use (&$values, $vars, $escapeExpr) {
+        $match[0][0] === '$' or array_splice($match, 1, 1);
+        list($full, $code) = $match;
+        $value = $this->strParser($full, $code, $vars, $escapeExpr);
+        $key = Compiler::Raw0.count($values).Compiler::Raw1;
+        $values[$key] = $value;
+        return $key;
+      }, $str);
       HTMLki::pcreCheck($str);
     }
 
-    return [$str, $this->strParseValues];
+    return [$str, $values];
   }
 
-  function strParser($match) {
-    $match[0][0] === '$' or array_splice($match, 1, 1);
-    list($full, $code) = $match;
-
+  protected function strParser($full, $code, array $vars, $escapeExpr) {
     if (ltrim($code, $full[0]) === '') {
-      $value = $code;
+      return $code;
     } elseif ($full[0] === '$') {
-      if (isset($this->strParseVars[$code])) {
-        $value = $this->strParseVars[$code];
-      } else {
-        $value = $this[$code];
-      }
+      return isset($vars[$code]) ? $vars[$code] : $this[$code];
     } else {
       $code = substr($code, 0, -1);
 
-      $escaped = (!$this->strParseEscapeExpr or $code[0] === '=');
+      $escaped = (!$this->escapeExpr or $code[0] === '=');
       $code[0] === '=' and $code = substr($code, 1);
 
-      $value = $this->evaluateStr($code, $this->strParseVars + $this->vars);
+      $value = $this->evaluateStr($code, $this->vars + $this->vars);
       $escaped or $value = $this->escape($value);
+      return $value;
     }
-
-    do {
-      $key = Compiler::Raw0. count($this->strParseValues) .Compiler::Raw1;
-    } while (isset($this->strParseValues[$key]));
-
-    $this->strParseValues[$key] = $value;
-    return $key;
   }
 
   function formatStr($str, array &$vars) {
@@ -815,13 +827,17 @@ class Template extends Configurable
     }
   }
 
+  protected function tag_rinclude($call) {
+    return $this->tag_include($call);
+  }
+
   protected function tag_include($call) {
     $func = $this->config->template;
 
     if (!$func) {
-      $this->warning("Cannot <include> a template - no \$template config handler set.", HTMLki::WARN_TAG + 1);
+      $this->warning("Cannot <$call->tag> a template - no \$template config handler set.", HTMLki::WARN_TAG + 1);
     } elseif (!$call->defaults) {
-      $this->warning("Cannot <include> a template - no \"name\" given.", HTMLki::WARN_TAG + 2);
+      $this->warning("Cannot <$call->tag> a template - no \"name\" given.", HTMLki::WARN_TAG + 2);
     } else {
       $listNameVars = $call->vars;
 
@@ -844,7 +860,7 @@ class Template extends Configurable
             if (!$inCondition) {
               // Believe that if $var is referenced in <include ${...}> then
               // the programmer knows why and when he's passing it.
-              $this->warning("<include 0 $var> referenced an undefined/non-array value.", HTMLki::WARN_TAG + 3);
+              $this->warning("<$call->tag 0 $var> referenced an undefined/non-array value.", HTMLki::WARN_TAG + 3);
             }
           }
         }
@@ -854,7 +870,7 @@ class Template extends Configurable
         $call->vars = $this->makeIncludeVars($call);
       }
 
-      $tpl = $file = call_user_func($func, $call->defaults[0], $this, $call);
+      $tpl = $file = call_user_func($func, $call->defaults[0], $call, $this);
 
       if (is_string($tpl)) {
         $config = $this->config->inheritConfig ? 'config' : 'originalConfig';
@@ -864,14 +880,64 @@ class Template extends Configurable
         $tpl->vars($call->vars);
       }
 
+      // Include pulls compartments from included (inner) templates into its
+      // own variables. Reverse-include (Rinclude) pushes its own variables
+      // into the included's compartments. In either case, the fact that a
+      // variable is a compartment is propagated along with its value (even if
+      // it's undefined).
+      // 
+      // middle.ki:
+      // <compartment "body">
+      //   <ul $menu> <include "inner" $item> </endul>
+      // </compartment "body">
+      // <rinclude "outer">
+      //
+      // inner.ki:
+      // <li>$item</li>
+      // <compartment "head"> <js "foo"> </compartment>
+      //
+      // outer.ki:
+      // <!DOCTYPE html>
+      // <!-- it now has compartments: body (1 item) and head (N items) -->
+      $isReverse = $call->tag !== 'include';
+      $compartments = array_intersect_key($listNameVars, $this->compartments);
+
+      if ($isReverse) { 
+        // Grab actual values at the time <*include> is called, not ->getCompartments().
+        $tpl->addVars($compartments);
+        // Mark even undefined ones (not in $compartments).
+        $tpl->markAsCompartments($this->getCompartmentVarNames());
+      }
+
       if ($call->lists) {
-        $this->loop($call->lists, function ($vars) use ($tpl) {
-          $tpl->add($vars);
+        $this->loop($call->lists, function ($vars) use ($tpl, &$compartments, $isReverse) {
+          $tpl = clone $tpl;
+          // IncludeTemplate doesn't require addVars() to return self.
+          $tpl->addVars($vars);   
           echo $tpl->render();
+
+          if (!$isReverse) {
+            $this->mergeCompartments($compartments, $tpl->getCompartments());
+          }
         }, $listNameVars);
       } else {
         echo $tpl->render();
+        if (!$isReverse) {
+          $this->mergeCompartments($compartments, $tpl->getCompartments());
+        }
       }
+
+      $this->markAsCompartments(array_keys($compartments));
+      // Return full arrays, i.e. old entries merged with new from $tpl(s).
+      // <rinclude> doesn't $extractTags since it doesn't modify compartments.
+      return $compartments;
+    }
+  }
+
+  protected function mergeCompartments(array &$into, array $addVars) {
+    foreach ($addVars as $name => $parts) {
+      $ref = &$into[$name];
+      $ref = array_merge($ref ?: [], (array) $parts);
     }
   }
 
@@ -887,7 +953,7 @@ class Template extends Configurable
       if (array_key_exists($name, $call->vars)) {
         $value = $call->vars[$name];
       } else {
-        $this->warning("Passing on an undefined variable $$name in <include>.", HTMLki::WARN_TAG + 4);
+        $this->warning("Passing on an undefined variable $$name in <$call->tag>.", HTMLki::WARN_TAG + 4);
         $value = null;
       }
 

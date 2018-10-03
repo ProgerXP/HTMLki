@@ -20,30 +20,51 @@
     require_once __DIR__."/class/$class.php";
   });
 
-  class EchoTemplate {
+  class EchoTemplate implements HTMLki\IncludeTemplate {
     public $name = '???';
-    public $vars = array();
+    public $vars = [];
+    public $compNames = [];
 
-    function add(array $vars) {
+    function addVars(array $vars) {
       $this->vars = $vars + $this->vars;
     }
 
+    function markAsCompartments(array $vars) {
+      $this->compNames += array_flip($vars);
+    }
+
+    function getCompartments() {
+      return ["icomp" => [$this->name]];
+    }
+
+    // It actually doesn't return anything but echoes inclusion info
+    // immediately so it ends up before the main $template contents is printed
+    // on the test page.
     function render() {
       ob_start();
+
       var_dump(array_diff_key($this->vars, [
         '_ki' => 1, 
         '_vars' => 1,
       ]));
+
       $dump = ob_get_clean();
+
       if (!ini_get('xdebug.overload_var_dump') or !ini_get('html_errors')) {
         $dump = esc($dump);
       }
-  ?>
+?>
 <fieldset>
   <legend>Included template <b>"<?=esc($this->name)?>"</b></legend>
+  <?php if ($this->compNames) {?>
+    <p>
+      Compartment variable(s): 
+      <b><?=esc(join(', ', array_keys($this->compNames)))?></b>
+    </p>
+  <?php }?>
   <pre><?=$dump?></pre>
 </fieldset>
-  <?php
+<?php
     }
   }
 
@@ -56,7 +77,7 @@
   $inputCompileOnly = &$_REQUEST['compile'];
   $inputVars = &$_REQUEST['vars'];
 
-  $warnings = array();
+  $warnings = [];
   $compiled = $template = null;
 
   if ($inputTemplate = trim($inputTemplate)) {
@@ -64,7 +85,7 @@
       $warnings[] = $msg;
     };
 
-    HTMLki\HTMLki::config()->template = function ($tpl, $parent, $call) {
+    HTMLki\HTMLki::config()->template = function ($tpl, $call) {
       $stub = new EchoTemplate;
       $stub->name = $tpl;
       $stub->vars = $call->vars;
@@ -76,9 +97,9 @@
 
     if ($template) {
       if (!strncmp($inputVars, '{', 1)) {
-        $template->add(json_decode($inputVars, true));
+        $template->addVars(json_decode($inputVars, true));
       } elseif ($inputVars) {
-        $template->add(eval("return $inputVars;"));
+        $template->addVars(eval("return $inputVars;"));
       }
     }
   }
@@ -157,7 +178,7 @@ VARS;
         <div>
           <label>
             The template (HTMLki syntax):
-            <textarea name="tpl" autofocus required><?=esc($inputTemplate ?: $defaultTemplate)?></textarea>
+            <textarea name="tpl" autofocus required onfocus="this.select(); this.onfocus = null"><?=esc($inputTemplate ?: $defaultTemplate)?></textarea>
           </label>
         </div>
         <div>
@@ -229,6 +250,19 @@ VARS;
         <?php } else {?>
           <pre><?php highlight_string($compiled)?></pre>
         <?php }?>
+      <?php }?>
+
+      <?php if ($template and $comps = $template->getCompartments()) {?>
+        <hr>
+        <ul>
+          <?php foreach ($comps as $var => $parts) {?>
+            <li>
+              <b><?=esc($var)?></b> compartment has 
+              <?=count($parts)?> part(s): 
+              <?=esc(join(', ', array_keys($parts)))?>
+            </li>
+          <?php }?>
+        </ul>
       <?php }?>
 
       <?php if ($warnings) {?>

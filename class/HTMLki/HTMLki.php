@@ -41,9 +41,10 @@ class HTMLki {
   //* $file str - path to HTMLki template file.
   //* $cachePath str - path to a folder where compiled templates are stored.
   //
-  //= string
+  //= Template
   //
   //? compileFileCaching('tpl/my.ki.html', 'cache/htmlki/')
+  //? compileFileCaching(...)->compiledStr()
   static function compileFileCaching($file, $cachePath, $config = null) {
     $hint = strtok(basename($file), '.');
     $cache = rtrim($cachePath, '\\/')."/$hint-".md5($file).'.php';
@@ -52,10 +53,9 @@ class HTMLki {
       $res = static::compileFile($file, $config);
       is_dir($cachePath) or mkdir($cachePath, 0750, true);
       file_put_contents($cache, $res, LOCK_EX);
-      return $res;
-    } else {
-      return file_get_contents($cache);
     }
+
+    return static::templateFile($cache, $config);
   }
 
   //= string
