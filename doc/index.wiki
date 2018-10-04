@@ -389,6 +389,39 @@ Equivalent to:
   <?$menu = ob_get_clean()?>
 %%
 
+Nesting example:
+%%(html)
+  $=header
+  <header id=head>
+    <h1>Logo</h1>
+    $=topNav
+    <nav $nav>
+      <a "$item">$item</a>
+    </endnav>
+    $*topNav
+  </header>
+  $^header
+%%
+
+As a result, %%(php)$nav%% contains:
+%%(html)
+  <nav>
+    <a href="index.html">index.html</a>
+    <a href="about.html">about.html</a>
+  </nav>
+%%
+
+And %%(php)$header%% contains:
+%%(html)
+  <header id="head">
+    <h1>Logo</h1>
+    <nav>
+      <a href="index.html">index.html</a>
+      <a href="about.html">about.html</a>
+    </nav>
+  </header>
+%%
+
 ==== $=attribute@tag ==
 When variable name is followed by an **at symbol** (%%@%%) it sets either a ((#flagattr flag attribute)) or a ((#shorthand+s)) for given tag. Tag can be empty to set global flag attribute or shorthand - for example, %%$=attr@ disabled%% sets %%disabled%% ((#flagattr flag)) attribute for all tags, such as:
   * %%(html)<input disabled>%% -> %%(html)<input disabled="disabled">%%
