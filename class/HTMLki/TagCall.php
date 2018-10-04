@@ -5,7 +5,7 @@ class TagCall {
 
   public $lists = [];         // list variable names without leading '$'
   public $defaults = [];      // default attributes without wrapping quotes
-  public $attributes = [];    // 'attr' => array('keyWr', 'valueWr', 'value')
+  public $attributes = [];    //= array of array('keyWr', 'key', 'valueWr', 'value')
   public $values = [];        //= array of array('valueWr', string)
 
   public $tag;                //= string
@@ -52,6 +52,7 @@ class TagCall {
     $defaults = $config->defaultAttributesOf($this->tag);
     $notEmpty = array_flip( $config->notEmptyAttributesOf($this->tag) );
     $flags = array_flip( $config->flagAttributesOf($this->tag) );
+    $enums = $config->enumAttributesOf($this->tag);
 
     $result = $config->defaultsOf($this->tag);
 
@@ -72,8 +73,19 @@ class TagCall {
       $str === '' or $config->expandAttributeOf($this->tag, $str, $result);
     }
 
-    foreach ($attributes as $name => $value) {
-      $result[$name] = $value[2];
+    // If $enumAttributes includes 'y' => '|' then given <tag x=1 x=2 y=1 y=2> 
+    // initial $attributes (omitting wrapper members)
+    // [['x', 1], ['x', 2], ['y', 1], ['y', 2]] become
+    // ['x' => 2, 'y' => '1|2'].
+    foreach ($attributes as $attr) {
+      list(, $name, , $value) = $attr;
+
+      if (!isset($enums[$name])) {   
+        $result[$name] = $value;
+      } elseif ($value) {   // loosely true - add to the set.
+        $present = isset($result[$name]);
+        $result[$name] = ($present ? $result[$name].$enums[$name] : '').$value;
+      }
     }
 
     // unset() rewinds foreach.

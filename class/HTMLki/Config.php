@@ -168,7 +168,7 @@ class Config {
 
   //= hash of array of string attribute names
   public $defaultAttributes = [
-    // for all tags not listed here:
+    // For all tags not listed here:
     ''          => ['class'],
     'a'         => ['href', 'class'],
     'base'      => ['href'],
@@ -193,7 +193,7 @@ class Config {
 
   //= hash of array of string attribute names
   public $defaults = [
-    // for all tags including those listed here (tag-specific ones override these):
+    // For all tags including those listed here (tag-specific ones override these):
     ''          => [],
     'button'    => ['type' => 'button', 'value' => 1],
     'form'      => ['method' => 'post', 'accept-charset' => 'utf-8'],
@@ -206,14 +206,27 @@ class Config {
 
   //= hash of array of string attributes to trim and skip if their value is empty
   public $notEmptyAttributes = [
-    ''          => ['class'],
+    ''          => ['class', 'id', 'style', 'title'],
     'input'     => ['placeholder'],
     'textarea'  => ['placeholder'],
+    'a'         => ['rel', 'target'],
+  ];
+
+  // Listed attributes can be given as <x class=one class=two> producing
+  // <x class="one two">. Typically all of them are also $notEmptyAttributes.
+  // A member of this exact form: attr=$var? is similar to loop's boolean
+  // suffix: if loose true, attr is set to the name of the variable, else to
+  // null. Members loosely false are elided.
+  //
+  //= hash of hash of attr => separ
+  public $enumAttributes = [
+    ''          => ['class' => ' '],
+    'a'         => ['rel' => ' '],
   ];
 
   //= hash of array of string attribute names
   public $flagAttributes = [
-    // for all tags including those listed here:
+    // For all tags including those listed here:
     ''          => ['disabled'],
     'area'      => ['nohref'],
     'audio'     => ['autoplay', 'controls', 'loop'],
@@ -247,9 +260,10 @@ class Config {
       'left'    => 'align',   'center'  => 'align',   'right'   => 'align',
       'justify' => 'align',   'top'     => 'align',   'middle'  => 'align',
       'bottom'  => 'align',   'ltr'     => 'dir',     'rtl'     => 'dir',
+      'hidden',
     ],
     'a'         => [
-      'new'     => 'target=_blank',
+      'new'     => ['target=_blank', 'rel=noopener'],
     ],
     'button'    => [
       'submit'  => 'type',    'reset'   => 'type',    'button'  => 'type',
@@ -328,6 +342,10 @@ class Config {
 
   function flagAttributesOf($tag) {
     return $this->mergedOf($tag, 'flagAttributes');
+  }
+
+  function enumAttributesOf($tag) {
+    return $this->mergedOf($tag, 'enumAttributes');
   }
 
   protected function mergedOf($tag, $prop) {

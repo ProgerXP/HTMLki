@@ -425,11 +425,10 @@ class Template extends Configurable
 
         if ($key !== '') {
           $keyWrapper = $this->wrapperOf($key);
-          $call->attributes[$key] = [$keyWrapper, $valueWrapper, $value];
+          $call->attributes[] = [$keyWrapper, $key, $valueWrapper, $value];
         } elseif ($value[strlen($value) - 1] === '=') {
           // 'x=' - an attribute with empty value.
-          $value = substr($value, 0, -1);
-          $call->attributes[$value] = ['', $valueWrapper, $value];
+          $call->attributes[] = [$valueWrapper, substr($value, 0, -1), '', ''];
         } else {
           $call->values[] = [$valueWrapper, $value];
         }
@@ -557,9 +556,9 @@ class Template extends Configurable
         isset($value) or $value = $key;
       }
 
-      if (!isset($call->attributes[$key])) {
-        $call->attributes[$key] = ['', '', $value];
-      }
+      // Adding default value for this attribute which is overwritten by a
+      // later attribute if it happens to be already present in the tag.
+      array_unshift($call->attributes, ['', $key, '', $value]);
     }
   }
 
@@ -663,8 +662,7 @@ class Template extends Configurable
     if ($call->isSingle) {
       // <... />
       if ($call->lists) {
-        $self = $this;
-        $this->loop($call, function ($vars) use ($self, $call)  {
+        $this->loop($call, function ($vars) use ($call)  {
           $call = clone $call;
           // unlike other loop calbacks <single $list /> doesn't return to the view
           // where extract() adds iteration variables to common pool; this means we
@@ -672,13 +670,13 @@ class Template extends Configurable
           $vars += $call->vars;
 
           foreach ($call->defaults as &$s) {
-            $s = $self->evaluateWrapped($vars, '', $s);
+            $s = $this->evaluateWrapped($vars, '', $s);
           }
 
-          $call->attributes = $self->evaluateWrapped($vars, $call->attributes);
-          $call->values = $self->evaluateWrapped($vars, $call->values);
+          $call->attributes = $this->evaluateWrapped($vars, $call->attributes);
+          $call->values = $this->evaluateWrapped($vars, $call->values);
 
-          echo $self->htmlTagOf($call, $call->tag);
+          echo $this->htmlTagOf($call, $call->tag);
         });
       } else {
         $call->attributes = $this->evaluateWrapped($call->vars, $call->attributes);
@@ -805,29 +803,30 @@ class Template extends Configurable
 
   function evaluateWrapped(array &$vars, $wrapper, $value = null) {
     if (func_num_args() == 2) {
-      $keys = [];
-
-      foreach ($wrapper as $key => &$ref) {
-        if (is_int($key)) {
-          list($valueWrapper, $value) = $ref;
-        } else {
-          list($keyWrapper, $valueWrapper, $value) = $ref;
-          $keys[] = $this->evaluateWrapped($vars, $keyWrapper, $key);
+      return array_map(function (array $item) use ($vars) {
+        for ($i = 0; isset($item[$i]); $i += 2) {
+          $item[$i + 1] = $this->evaluateWrapped($vars, $item[$i], $item[$i + 1]);
+          $item[$i] = '-';
         }
-
-        $last = count($ref) - 1;
-        $ref[$last - 1] = '-';
-        $ref[$last] = $this->evaluateWrapped($vars, $valueWrapper, $value);
-      }
-
-      return $keys ? array_combine($keys, $wrapper) : $wrapper;
-    } elseif ($wrapper === '-') {
+        return $item;
+      }, $wrapper);
+    } elseif ($wrapper === '-') {   // already evaluated, use raw.
       return $value;
-    } elseif ($wrapper === '{') {
+    } elseif ($wrapper === '{') {   // <a { some('code') }>
       $value = substr($value, 1, -1);
       return $this->evaluateStr($value, $vars);
-    } else {      // " or (none)
-      $wrapper === '"' and $value = substr($value, 1, -1);
+    } elseif ($wrapper === '"') {   // <a "some $str">
+      return $this->formatStr(substr($value, 1, -1), $vars);
+    } elseif ($wrapper !== '') {
+      $this->error("evaluateWrapped() received invalid \$wrapper '$wrapper'.");
+    } else {                        // <a some> 
+      if (substr($value, 0, 1) === '$' and substr($value, -1) === '?') {
+        // <a class=$current? class=nav> -> <a class="[current ]nav">
+        $varName = substr($value, 1, -1);
+        if ($varName and ltrim($varName, 'a..zA..Z0..9_') === '') {
+          return $this->formatStr("$$varName", $vars) ? $varName : null;
+        }
+      }
       return $this->formatStr($value, $vars);
     }
   }
@@ -904,7 +903,7 @@ class Template extends Configurable
       // outer.ki:
       // <!DOCTYPE html>
       // <!-- it now has compartments: body (1 item) and head (N items) -->
-      $isReverse = $call->tag !== 'include';
+      $isReverse = $call->tag === 'rinclude';
       $compartments = array_intersect_key($listNameVars, $this->compartments);
 
       if ($isReverse) { 
