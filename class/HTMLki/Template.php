@@ -130,7 +130,7 @@ class Template extends Configurable
   }
 
   // This returns only previously assigned vars' values, not current values in
-  // a running template.
+  // a running template unless $grabFinalVars is set and render() has returned.
   function getCompartments() {
     return array_intersect_key($this->vars, $this->compartments);
   }

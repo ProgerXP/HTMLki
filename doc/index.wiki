@@ -73,7 +73,7 @@ HTMLki extends HTML syntax similar to the way ((http://lesscss.org LESS)) extend
 
 This section describes the entire HTMLki language. It's huge in the details but they stem from a few simple concepts.
 
-=== ((#brackets)) { expr } ===
+=== ((#brackets)) { expr } ==
 Expression that is evaluated as PHP code and its result output with the following HTML characters quoting ([[php:htmlspecialchars]] with %%ENT_COMPAT%%):
   * %%<%% -> %%(html)&lt;%%
   * %%>%% -> %%(html)&gt;%%
@@ -101,7 +101,7 @@ Trailing semicolon is optional:
   <h2>{ $title; }</h2>
 %%
 
-==== Dollar shortcut ====
+==== Dollar shortcut ==
 Outputs an escaped variable content; starts with a dollar symbol (%%$%%) followed by a Latin letter and includes all consecutive %%a-z A-Z 0-9 _%% symbols. Standalone %%$%%'s not matching this pattern are output as is.
 
 Equivalent of wrapping this into ((#brackets)): %%{ $var_123 }%%.
@@ -126,7 +126,7 @@ Equivalent to:
   Hello, <strong>{ $user['name'] }</strong>!
 %%
 
-==== {= raw } ====
+==== {= raw } ==
 The same as ((#bracket+s)) expression but doesn't escape HTML characters. Should be used with care as it creates a ((WP:XSS)) possibility.
 
 **Examples:**
@@ -141,7 +141,7 @@ Equivalent to:
   <time datetime="<?=gmdate('Y-m-d')?>">">
 %%
 
-==== Ruby-like function call ====
+==== Ruby-like function call ==
 Ruby allows omitting brackets around the outermost function call for readability and brevity. A similar feature is supported within %%{ }%% construct:
 %%(html)
   Your balance is <b>${ number_format $user->balance }</b>.
@@ -168,7 +168,7 @@ More examples:
   Timezones: { join ', ', \DateTimeZone::listIdentifiers(\DateTimeZone::ANTARCTICA) }.
 %%
 
-==== {{ escape ====
+==== {{ escape ==
 Double curly brackets are used to cancel their normal ((#bracket+s)) expression processing.
 
 **Examples:**
@@ -181,7 +181,7 @@ Equivalent to:
   C-like languages use <kbd><?='{'?></kbd> symbols a lot.
 %%
 
-=== Language ===
+=== Language ==
 Strings enclosed in quotes are first looked up in language strings table and then output. If the table contains no such string the original is used.
 
 Strings may contain substitutions which are replaced with %%:1%%, %%:2%%, etc. For example:
@@ -212,7 +212,7 @@ Equivalent to:
 
 **Attention:** because these are not PHP strings, %%"Hello, $user->name"%% becomes %%"Hello, :1->name"%%. To reference an object field or array member use %%"Hello, { $user->name }"%%.
 
-==== ""escape ====
+==== ""escape ==
 Double quotes prevent the following text from being treated as a ((#language)) string. They are output as is.
 
  **Examples:**
@@ -235,7 +235,7 @@ Equivalent to:
   <em><?=$this->lang('Hello, mister "Robertson".')?></em>
 %%
 
-=== Line merging ===
+=== Line merging ==
 Often in HTML you have a long line which cannot be broken without unwanted side effects. The trailing-backslash syntax borrowed from C addresses this problem:
 %%(html)
   <a href="..." \
@@ -284,7 +284,7 @@ Equivalent to:
 
 Formally, everything starting from %%\%% until next non-whitespace symbol (on the following line) is removed. %%\%% may be followed by any number of tabs and spaces before the line break. Whitespace before %%\%% is preserved.
 
-==== \\escape ====
+==== \\escape ==
 Each pair of trailing backslashes is shrunk to a single %%\%% and no line merging happens (unless there is an unpaired %%\%%):
 %%
   C-style languages \\
@@ -300,12 +300,12 @@ Equivalent to:
     leaning toothpick syndrome (LTS).
 %%
 
-=== Variable assignment ===
+=== Variable assignment ==
 Apart from outputting variables using ((#brackets expressions)) and ((#dollar)) shortcut you can set their values - either ((#single-line)) or ((#multi-line)).
 
 //This construct must appear on a line by itself or it's output as is. The leading dollar symbol (%%$%%) can only be preceded with whitespace.//
 
-==== Single-line ====
+==== Single-line ==
 %%(html)
   $=varName php($expression)
   $*varName 'assign, escape'.'& output'
@@ -330,7 +330,7 @@ Equivalent to:
   <?$maxLength = 50?>
   <input class="text" maxlength=<?=$maxLength?> />
 
-  <?php echo $warning = '<p class="warning">Warning!</p>'?>
+  <?php echo htmlspecialchars($warning = '<p class="warning">Warning!</p>')?>
   <ul>
   ...
   </ul>
@@ -342,7 +342,7 @@ Trailing semicolon is optional:
   $=maxLength 50;
 %%
 
-==== Multi-line ====
+==== Multi-line ==
 %%(html)
   $=varName
   <pre>
@@ -389,7 +389,7 @@ Equivalent to:
   <?$menu = ob_get_clean()?>
 %%
 
-==== $=attribute@tag ====
+==== $=attribute@tag ==
 When variable name is followed by an **at symbol** (%%@%%) it sets either a ((#flagattr flag attribute)) or a ((#shorthand+s)) for given tag. Tag can be empty to set global flag attribute or shorthand - for example, %%$=attr@ disabled%% sets %%disabled%% ((#flagattr flag)) attribute for all tags, such as:
   * %%(html)<input disabled>%% -> %%(html)<input disabled="disabled">%%
   * %%(html)<button disabled>%% -> %%(html)<button disabled="disabled">%%
@@ -511,10 +511,10 @@ Other types and other cases of the listed types are not coercible and fail the i
 
 **Attention:** //FILTER_XXX// (of PHP [[php:filter_var]]()) trim their input so that %%(php)"\t123"%% is seen as a valid //int// and //float//.
 
-==== $+compartment ====
+==== $+compartment ==
 Compartments are regular variables that are automatically passed between connected templates while accumulating values. Typical examples are "styles" and "scripts" on a webpage - one template may add the styles it depends on, another template - another set of styles until the final template outputs these compartments to the appropriate places on the page (%%(html)<head>%% and %%(html)<body>%%).
 
-A compartment variable is defined using a syntax similar to ((#multi))-line assignment, terminating with a %%$+var@key%% line. If %%key%% is set new item is created only if %%(php)$var%% has no such key or it's null. %%(php)$var%% is automatically created as or converted to an array.
+A compartment variable is defined using a syntax similar to ((#multi))-line assignment, terminating with a %%$+var@key%% line. If %%key%% is set %%(php)$var%% gets at most one entry per that %%key%%. %%(php)$var%% is automatically created as or converted to an array.
 
 Two main ((#func functions)) power this mechanism: 
 
@@ -532,7 +532,7 @@ Roughly equivalent to this PHP 7.0+ code:
   $head = (array) $head ?? [];
 %%
 
-==== Example ====
+===== Example ==
 Let's consider this "main" template (called by a frontend script/controller with page-specific variables):
 %%(html)
   $=head
@@ -582,7 +582,20 @@ The %%outer%% template might start with this snippet:
 
 The ((#input)) checking line is optional and enforces %%(php)$head%%'s type as well as sets its default value (empty array).
 
-==== $$=escape ====
+===== ((#sincomp)) Single-line ==
+Single-line form without opening %%$=var%% can be used for simple content that doesn't use ((#expr expressions)) and other ((#tags magic)):
+%%(html)
+  $+head  <meta charset="cp1251">
+  $+head@desc  <meta name="description" value="Foo">
+%%
+
+Equivalent to:
+%%(php)
+  $head = array_merge($head ?? [], ['<meta ...>']);
+  $head = array_merge($head ?? [], ['desc' => '<meta ...>']);
+%%
+
+==== $$=escape ==
 It's possible to escape the ((#variable)) assignment expressions by doubling the leading dollar symbol (%%$%%).
 
 Note that the assignment is only recognized when it occurs on a line by itself so you don't need to escape it if it doesn't (and escaping won't be removed there).
@@ -623,7 +636,7 @@ Equivalent to:
   <?$multilineVar = ob_get_clean()?>
 %%
 
-=== ((#php)) <?php code?> ===
+=== ((#php)) <?php code?> ==
 It's possible to use shorthand PHP tags regardless of ((http://www.php.net/manual/en/ini.core.php#ini.short-open-tag short_open_tag)) configuration. The following tags are recognized:
   * %%(php)<?some($code)?>%% -> %%(php)<?php some($code)?>%%
   * %%(php)<?php some($code)?>%% -> %%(php)<?php some($code)?>%% (the same)
@@ -637,7 +650,7 @@ PHP code snippets can be used along with normal HTML or HTMLki constructs; for e
   </ul>
 %%
 
-=== Tags ===
+=== Tags ==
 Tags in HTMLki are just like normal HTML tags with certain additions:
   1. ((#defattr Default attribute names)) - lets you omit %%src=%% for images, %%action=%% for forms, %%class=%% for other tags, etc.
   1. ((#flagattr Flag attributes)) - it's possible to specify %%readonly%%, %%checked%%, %%submit%% (%%(html)type="submit"%%) with a value alone and the attribute name will be guessed.
@@ -662,7 +675,7 @@ To avoid ambiguity in closing %%>%% detection, surround %%>%% with spaces to mak
   1. %%<if a>b>%% are a tag %%<if a>%% followed by plain text %%b>%%
 
 
-==== ((#attr)) Attributes ====
+==== ((#attr)) Attributes ==
 HTMLki extends HTML format for specifying tag attributes (%%(html)attr="value" second="yet another"%%) with the following:
   1. Array variables for ((#loops)) are specified after the tag name: %%(html)<div $array $another>%%
   1. ((#defattr Default attributes)) are specified the same way: %%(html)<img "src" "class">%%. They must go after array variables for tags not listed in **loopTags** config option: %%(html)<img $glyphs "src" $thumbs "class">%% **is not** the same as %%(html)<img "src" "class" $glyphs $thumbs>%% (loop won't be recognized) unless %%img%% is listed in **loopTags** - in this case both examples have the same effect.
@@ -687,7 +700,7 @@ HTMLki extends HTML format for specifying tag attributes (%%(html)attr="value" s
 
 **Note:** HTML characters are ((#brackets escaped)) in substitutions. See also ((#attr tag attribute expansion)).
 
-===== ((#defattr)) Default attributes =====
+===== ((#defattr)) Default attributes ==
 If a ((#tag+s)) attribute is unnamed and wrapped in quotes it's treated as a value for some commonly used attribute of that particular tag. For example, %%(html)<img>%% doesn't make sense without %%src%%. One tag can have multiple default attributes.
 
 **List of default attributes per tag:**
@@ -715,7 +728,7 @@ If a ((#tag+s)) attribute is unnamed and wrapped in quotes it's treated as a val
 
 Others have a single default attribute - %%class%%; for example: %%(html)<span "highlight">Notice</span>%% -> %%(html)<span class="highlight">%%.
 
-===== ((#flagattr)) Flag attributes =====
+===== ((#flagattr)) Flag attributes ==
 In HTML attributes like %%readonly%% and %%selected%% can be either unspecified or have the same value as their name. With HTMLki you can specify them as //flags// where empty string or string "0" are **false** and everything else is **true**. They will be expanded to full HTML values.
 
 **List of flag attributes per tag:**
@@ -774,7 +787,7 @@ Also, the following attributes can be used in any tag:
     = dir %%ltr%%, %%rtl%%
 ##
 
-==== Multitags ====
+==== Multitags ==
 Slash symbol (%%/%%) is used to separate multiple tag names inside a single tag construct. All attributes are related to the last tag in the chain. Preceding tags cannot be given attributes using this form; however, their ((#shorthands implied attributes)) (e.g. %%(html)method="post"%% for %%(html)<form>%%) are output.
 
 **Example:**
@@ -817,7 +830,7 @@ Equivalent to:
   </form>
 %%
 
-==== ((#ts)) Shortcut tags ====
+==== ((#ts)) Shortcut tags ==
 Allows creating custom tags by aliasing other tags and possibly setting attributes when referred to them this way.
 
 **Example:**
@@ -852,7 +865,7 @@ Attributes defined in that tag take priority over such aliased attributes so tha
     = post %%(html)<form method="post">%%
 ##
 
-==== ((#func)) Tags-functions ====
+==== ((#func)) Tags-functions ==
 %%(html)<[/]tag[ attributes....]>%% construct is a function call that can be intercepted. By default if no implementation is defined an HTML tag is output with that name and with all attributes joined together, respecting ((#loops)) if any list variable is given.
 
 **Function and tag names are converted to lower case:** %%(html)<SpAn>%% is identical to %%(html)<span>%%.
@@ -865,7 +878,7 @@ If it's a block function (like %%(html)<each>%% or %%(html)<if>%%) it can return
 
 See also ((#funcs List of standard functions)).
 
-=== Loops and conditions ===
+=== Loops and conditions ==
 Any HTML tag can be converted into a loop by listing one or more variables or expressions after its tag name, possibly mixed with ((#defattr default attributes)):
 %%(html)
   <ol $headers>
@@ -925,7 +938,7 @@ There must be no spaces before %%?%% or it will be treated as a separate attribu
   <div $isAuth ?>
 %%
 
-==== ((#lv)) Variables ====
+==== ((#lv)) Variables ==
 The following variables are defined after the loop has started iterating:
   * **$key_//prefix//** - key of list item being iterated over.
   * **$i_//prefix//** - similar to %%(php)$keyPREFIX%% but contains 0-based index of currently iterated item regardless of its array key.
@@ -943,7 +956,7 @@ No variables are created if prefix is %%_%% or ((#boolsuf boolean suffix)) is us
       <ul $_{ getItems() }>
 %%
 
-==== Branching ====
+==== Branching ==
 Each loop can contain zero or more //else// branches. Unless it's an ((#il implicit loop tag)) each loop must be terminated with a symmetrical %%(html)</endXXX>%% form where **XXX** must match the starting tag. The ending **XXX** tag is output if both the accepted //else// branch and //end// had tag names: %%(html)<elseXXX>...</endXXX>%%.
 
 %%(html)
@@ -1020,7 +1033,7 @@ HTMLki errors if opening tag doesn't match %%(html)<endXXX>%% tag (no such check
 %%
 
 
-==== ((#sl)) Single-tag loops ====
+==== ((#sl)) Single-tag loops ==
 Sometimes it's convenient to ((#loop+s)) over a single tag instead of a ((#bl block)). Let's assume that we have an array of stylesheets:
 %%(php)
   array(
@@ -1036,10 +1049,10 @@ We can output them all using this line:
 
 //Even though this looks like a XHTML tag the presence of trailing %%/%% is controlled by HTMLki and can be enabled or disabled using its preferences without affecting the original template.//
 
-==== ((#bl)) Block loops ====
+==== ((#bl)) Block loops ==
 Unlike ((#sl single-tag loops)) block loops operate on an arbitrary chunk of code wrapped into %%(html)<tag>...</endtag>%% pair. ((#lv Regular variables)) are defined both inside these blocks and after them, although the latter should be considered an undesirable side-effect and might be changed in future.
 
-==== ((#il)) Implicit loops ====
+==== ((#il)) Implicit loops ==
 HTMLki can be configured to treat specific tags as always looping even if they don't have any PHP variables passed. Of ((#funcs standard functions)) //((#If))// and //((#Each))// are such tags.
 
 Both of the following examples have identical effect except the first works even when //((#If))// isn't configured as an implicit loop tag:
@@ -1055,7 +1068,7 @@ Both of the following examples have identical effect except the first works even
   </if>
 %%
 
-=== ((#single)) Single tags ===
+=== ((#single)) Single tags ==
 HTMLki can automatically treat certain tags as single tags requiring no ending tag and convert single tags specified in the template into their full forms with empty body if they're not real short tags per HTML specification.
 
 **Examples:**
@@ -1077,7 +1090,7 @@ You can still write regular HTML if you want which is equivalent to the code abo
 
 == ((#funcs)) Standard functions ==
 
-=== Include ===
+=== Include ==
 %%(html)
   <include "partials/sidebar" expanded=1 user>
 %%
@@ -1109,7 +1122,7 @@ Example of setting a non-scalar using a temporary variable (%%my/tpl%% gets %%(p
 
 Includes another template file as if its contents was directly placed at the point of %%(html)<include>%%.
 
-=== Rinclude ===
+=== Rinclude ==
 %%(html)
   $=body
     <h1>Welcome</h1>
@@ -1120,7 +1133,7 @@ Includes another template file as if its contents was directly placed at the poi
 
 //Reverse include// - the same as //((#Include))// except that ((#compartment)) variables are passed forward to the included script and are not merged on return.
 
-=== Each ===
+=== Each ==
 %%(html)
   <each $items "item">
     <b>Key:</b>    $key_item,
@@ -1133,7 +1146,7 @@ Includes another template file as if its contents was directly placed at the poi
 
 The same as //((#Include))// but instead of filling a separate template file uses its own code block.
 
-=== If ===
+=== If ==
 %%(html)
   <if date('d') == 1>
     <p>First day today!</p>
@@ -1146,7 +1159,7 @@ The same as //((#Include))// but instead of filling a separate template file use
 
 Takes an arbitrary PHP expression and either executes its block or ignores it (passing on to //else// branches if there are any).
 
-=== Lang ===
+=== Lang ==
 %%(html)
   <lang "install_$status" { $fileCount + 1 }>
 %%
@@ -1158,7 +1171,7 @@ For example, if %%(php)$status%% above is %%success%% then //Lang// will output 
   Installation has been successfully finished (:1 files copied).
 %%
 
-=== Mailto ===
+=== Mailto ==
 %%(html)
   <mailto "master@example.com" "Subject line" />
   E-mail the <mailto "master@example.com">webmaster</mailto>

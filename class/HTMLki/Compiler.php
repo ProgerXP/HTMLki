@@ -207,64 +207,92 @@ class Compiler extends Configurable {
 
   protected function match_varSet($match) {
     list(, $head, $escape, $body, $type, $var, $tag, $value, $eoln) = $match;
+
     // .* matches \r (but not \n if not in /s mode).
     $value = trim($value);
     $this->config->addLineBreaks or $eoln = '';
     $self = $this->config->selfVar;
 
-    if ($escape) {
+    if ($escape) {    // $$... -> $...
       return $this->raw($head.substr($escape, 1), $head.$escape).$body;
-    } elseif ($type === '>') {
-      return $this->match_input($head.$body, $var, $tag, $value).$eoln;
-    } elseif ($type === '^' and $value !== '') {
-      // "$^var value" is meaningless since inline assignment is just one line.
-      return $this->raw($head.$escape).$body;
-    } elseif ($type === '=') {
-      if ($tag) {
-        $attributes = [];
+    }
 
-        $regexp = '~(\s|^)([a-zA-Z_]\w*)(=(?:"[^"]*"|[^\s]*))?()(?=\s|$)~'.
-                  $this->config->regexpMode;
+    switch ($type) {
+      default:
+        $this->error("Unexpected match_varSet() \$type '$type'.");
 
-        if ($value and preg_match_all($regexp, $value, $matches, PREG_SET_ORDER)) {
-          foreach ($matches as $match) {
-            $attr = $match[2].($match[3] ? trim($match[3], '"') : "=$match[2]");
-            $attributes[] = "'".$this->quote($attr)."'";
+      case '>':       // $>input
+        return $this->match_input($head.$body, $var, $tag, $value).$eoln;
+
+      case '=':       
+        if ($tag) {   // $=attr@tag
+          $attributes = [];
+
+          $regexp = '~(\s|^)([a-zA-Z_]\w*)(=(?:"[^"]*"|[^\s]*))?()(?=\s|$)~'.
+                    $this->config->regexpMode;
+
+          if ($value and preg_match_all($regexp, $value, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+              $attr = $match[2].($match[3] ? trim($match[3], '"') : "=$match[2]");
+              $attributes[] = "'".$this->quote($attr)."'";
+            }
           }
-        }
 
-        $tag = $this->quote(strtolower( substr($tag, 1) ));
-        $attributes = join(', ', $attributes);
-        $code = "\${$self}->setTagAttribute('$tag', '$var', [$attributes])";
-      } elseif ($value === '') {
-        $code = 'ob_start()';
-      } else {
-        $value = rtrim($value, ';');
-        $code = "$$var = ($value)";
-      }
-    } elseif ($type === '*' and $value !== '') {
-      $value = rtrim($value, ';');
-      $code = "echo \${$self}->escape($$var = $value)";
-    } elseif ($type === '+') {
-      // Add new item to the compartment:
-      //   $=var
-      //   ...
-      //   $+var[@key]
-      // Only mark var as a compartment, creating it as [] if unset:
-      //   $=var
-      //   $+var
-      // Process items in the compartment:
-      //   <each $var> ... e.g. { join $item } </each>
-      //   use  $>var@ array  to pre-create an optional compartment variable 
-      $tag = $this->quote(substr($tag, 1));
-      strlen($tag) and $tag = "'$tag'";
-      $code = "isset($$var) or $$var = [];".
-              "is_array($$var) or $$var = (array) $$var;".
-              "ob_get_length() and \${$var}[$tag] = ob_get_clean();".
-              "\${$self}->markAsCompartments(['$var']);";
-    } else {
-      $func = $type === '^' ? 'clean' : 'flush';
-      $code = "$$var = ob_get_$func()";
+          $tag = $this->quote(strtolower( substr($tag, 1) ));
+          $attributes = join(', ', $attributes);
+          $code = "\${$self}->setTagAttribute('$tag', '$var', [$attributes])";
+        } elseif ($value === '') {    // $=multilinestart
+          $code = 'ob_start()';
+        } else {      // $=singleline assign
+          $value = rtrim($value, ';');
+          $code = "$$var = ($value)";
+        }
+        break;
+
+      case '+':    // $+compartment
+        $tag = $this->quote(substr($tag, 1));
+        strlen($tag) and $tag = "'$tag'";
+        $code = "isset($$var) or $$var = [];".
+                "is_array($$var) or $$var = (array) $$var;".
+                "\${$self}->markAsCompartments(['$var']);";
+
+        if ($value === '') {
+          // Add new item to the compartment:
+          //   $=var
+          //   ...
+          //   $+var[@key]
+          // Only mark var as a compartment, creating it as [] if unset:
+          //   $=var
+          //   $+var
+          // Process items in the compartment:
+          //   <each $var> ... e.g. { join $item } </each>
+          //   use  $>var@ array  to pre-create an optional compartment variable 
+          $code .= "ob_get_length() and \${$var}[$tag] = ob_get_clean();";
+        } else {    // $+comp assign
+          // Add:       $+var[@key] 123
+          // Mark:      use the multiline form
+          // Process:   <include $var "items">
+          $code .= "\${$var}[$tag] = ($value);";
+        }
+        break;
+
+      case '^':       // $^multilineassign
+        if ($value !== '') {  
+          // "$^var value" is meaningless since inline assignment is done
+          // with "$=var value".
+          return $this->raw($head.$escape).$body;
+        }
+      case '*':       
+        if ($value !== '') {  // $*singleline assign & echo 
+          $value = rtrim($value, ';');
+          $code = "echo \${$self}->escape($$var = $value)";
+        }       
+        // $*multilineassign&echo $^multilineassign
+        if ($value === '') {
+          $func = $type === '^' ? 'clean' : 'flush';
+          $code = "$$var = ob_get_$func()";
+        }
+        break;
     }
 
     return $this->rawPhp($code, $head.$body).$eoln;
