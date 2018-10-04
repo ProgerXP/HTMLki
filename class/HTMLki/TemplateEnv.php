@@ -5,7 +5,9 @@
 // form.
 interface TemplateEnv {
   function setTagAttribute($tag, $key, array $attributes = []);
-  //= strini
+  //= object
+  function config();
+  //= string
   function escape($str);
   function input(array $vars, $var, &$value, $type, $coercible, $default = null, $cond = '');
   //= string

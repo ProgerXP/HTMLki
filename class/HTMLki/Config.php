@@ -141,9 +141,7 @@ class Config {
   public $warnOnFalseEval = false;
 
   // Tag used when tag name is omitted, e.g. <"class"> -> <span "class">.
-  // Works for closing tag as well: </> -> </span>.
-  // Is used exactly as if it appears in the template - it can be a multitag,
-  // regular tag attributes (flags, defaults) are used and so on.
+  // Works for closing tag as well: </> -> </span>. Can be a multitag. 
   public $defaultTag = 'span';    //= string
 
   // Format of member items:

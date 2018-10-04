@@ -203,11 +203,11 @@ class Compiler extends Configurable {
     return $this->rawPhp(rtrim($code, ';'));
   }
 
-  // $=...   $$=...   also > ^ * +
+  // $=...   $$=...   also > ^ * + #
   protected function compile_varSet(&$str) {
     $ws = '[ \t]';
     $id = '[a-zA-Z_]\w*';
-    $regexp = "~^($ws*\\$)(\\$*)(([=>^*+])($id)(@(?:\S*)?)?($ws+.*)?)(\r?\n|$)()~m";
+    $regexp = "~^($ws*\\$)(\\$*)(([=>^*+#])($id)(@(?:\S*)?)?($ws+.*)?)(\r?\n|$)()~m";
 
     return $this->replacing(__FUNCTION__, $regexp, $str);
   }
@@ -217,6 +217,9 @@ class Compiler extends Configurable {
 
     // .* matches \r (but not \n if not in /s mode).
     $value = trim($value);
+    // Brackets required in case operators with lower precedence than of
+    // '=' are used in $value, like 'or'.
+    $codeValue = '('.rtrim($value, ';').')';
     $this->config->addLineBreaks or $eoln = '';
     $self = $this->config->selfVar;
 
@@ -258,8 +261,7 @@ class Compiler extends Configurable {
           $this->varNesting[] = compact('type', 'var');
           $code = 'ob_start()';
         } else {      // $=singleline assign
-          $value = rtrim($value, ';');
-          $code = "$$var = ($value)";
+          $code = "$$var = $codeValue";
         }
         break;
 
@@ -287,8 +289,12 @@ class Compiler extends Configurable {
           // Add:       $+var[@key] 123
           // Mark:      use the multiline form
           // Process:   <include $var "items">
-          $code .= "\${$var}[$tag] = ($value);";
+          $code .= "\${$var}[$tag] = $codeValue";
         }
+        break;
+
+      case '#':   // $#config 
+        $code = "\${$self}->config()->$var = $codeValue";
         break;
 
       case '^':       // $^multilineassign
@@ -300,7 +306,7 @@ class Compiler extends Configurable {
       case '*':       
         if ($value !== '') {  // $*singleline assign & echo 
           $value = rtrim($value, ';');
-          $code = "echo \${$self}->escape($$var = $value)";
+          $code = "echo \${$self}->escape($$var = $codeValue)";
         }       
         // $*multilineassign&echo $^multilineassign
         if ($value === '') {

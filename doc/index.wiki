@@ -616,16 +616,39 @@ The %%outer%% template might start with this snippet:
 The ((#input)) checking line is optional and enforces %%(php)$head%%'s type as well as sets its default value (empty array).
 
 ===== ((#sincomp)) Single-line ==
-Single-line form without opening %%$=var%% can be used for simple content that doesn't use ((#expr expressions)) and other ((#tags magic)):
+Single-line form without opening %%$=var%% can be used to add/set an array's member:
 %%(html)
-  $+head  <meta charset="cp1251">
-  $+head@desc  <meta name="description" value="Foo">
+  $+scripts 'jquery-2000.js'
+  $+styles@print 'media-print.css'
 %%
 
 Equivalent to:
 %%(php)
-  $head = array_merge($head ?? [], ['<meta ...>']);
-  $head = array_merge($head ?? [], ['desc' => '<meta ...>']);
+  $scripts = array_merge($scripts ?? [], ['jquery-2000.js']);
+  $styles  = array_merge($styles ?? [],  ['print' => 'media-print.css']);
+%%
+
+This is unlike regular ((#variable)) assignment which replaces the entire variable: %%(php)$=array 'value'%% equals %%(php)$array = 'value'%%.
+
+==== $#configuration ==
+This construct is used to change the templater's runtime configuration. It's similar to creating tag ((#attribute+))s but works with any option (see %%(php)HTMLki\Config%% class).
+
+Example:
+%%(html)
+  <"">hello</>
+  $#defaultTag  'b'
+  <"">world</>
+
+  $#evalPrefix  'namespace MyNS;'
+  <input value={ __NAMESPACE__ }>
+%%
+
+Outputs:
+%%(html)
+  <span>hello</span>
+  <b>world</b>
+
+  <input type="text" value="MyNS">
 %%
 
 ==== $$=escape ==
@@ -685,6 +708,7 @@ PHP code snippets can be used along with normal HTML or HTMLki constructs; for e
 
 === Tags ==
 Tags in HTMLki are just like normal HTML tags with certain additions:
+  1. ((#deftag Default tag names)) - if you use //span//s or other tags a lot you can as well write %%(html)<"b-e_m">forever</>%% to get %%(html)<span class="b-e_m">forever</span>%%
   1. ((#defattr Default attribute names)) - lets you omit %%src=%% for images, %%action=%% for forms, %%class=%% for other tags, etc.
   1. ((#flagattr Flag attributes)) - it's possible to specify %%readonly%%, %%checked%%, %%submit%% (%%(html)type="submit"%%) with a value alone and the attribute name will be guessed.
   1. ((#attr Attribute expansion)) - lets you use PHP variables or expressions in attribute names and values and omit surrounding quotes around attribute values: %%(html)<radio "radio {$i % 2 ? 'even' : 'odd'}" checked=checked id=$ctlID>%%.
@@ -897,6 +921,34 @@ Attributes defined in that tag take priority over such aliased attributes so tha
     = get %%(html)<form method="get">%%
     = post %%(html)<form method="post">%%
 ##
+
+==== ((#deftag Default tags)) ==
+By default if a %%<tag>%% construct is missing the tag name %%span%% is used. Other properties like ((#defattr default attributes)) work as usual.
+
+Example:
+%%(html)
+  I use <"emphasis">so many</> spans that
+  it <"hinting">can</> become very tedious
+  to type. <"" id=endofstory />
+%%
+
+Equivalent to:
+%%(html)
+  I use <span class="emphasis">so many</span> spans that
+  it <span class="hinting">can</span> become very tedious
+  to type. <span id="endofstory"></span>
+%%
+
+See also ((#configuration)) for changing default tag(s) used on the fly:
+%%(html)
+  $#defaultTag  'b/i'
+  <"">Emphase me</>
+%%
+
+Equivalent to:
+%%(html)
+  <b><i>Emphase me</i></b>
+%%
 
 ==== ((#func)) Tags-functions ==
 %%(html)<[/]tag[ attributes....]>%% construct is a function call that can be intercepted. By default if no implementation is defined an HTML tag is output with that name and with all attributes joined together, respecting ((#loops)) if any list variable is given.

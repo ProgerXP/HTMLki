@@ -493,7 +493,12 @@ class Template extends Configurable
   }
 
   function callTag(TagCall $call) {
-    $call->tag === '' and $call->tag = $this->config->defaultTag;
+    if ($call->tag === '') { 
+      $call->tag = $this->config->defaultTag;
+      if ($call->isEnd) {
+        $call->tag = join('/', array_reverse(explode('/', $call->tag)));
+      }
+    }
 
     $tag = strrchr($call->tag, '/');
     if ($tag !== false) {
