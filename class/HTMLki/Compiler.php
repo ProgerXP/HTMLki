@@ -9,6 +9,7 @@ class Compiler extends Configurable {
   protected $raw = [];      //= hash of mask => original
   protected $rawSrc = [];   //= hash of mask => string replaced in the template
   protected $nesting = [];  //= array of hash tag=>, isLoopTag=>
+  protected $varNesting = [];   //= array of var=>, type=>
 
   //= string
   static function braceRegExp($op, $ed = null, $delimiter = '~') {
@@ -71,14 +72,20 @@ class Compiler extends Configurable {
 
   protected function postCompile(&$str) {
     if ($this->nesting) {
-      $tags = '';
-
-      foreach ($this->nesting as $tag) {
-        $tags .= ($tags ? ' -> ' : '').$tag['tag'];
-      }
+      $tags = join(' -> ', array_map(function ($tag) {
+        return $tag['tag']; 
+      }, $this->nesting));
 
       $s = count($this->nesting) == 1 ? '' : 's';
       $this->warning("Unterminated \$list tag$s: $tags.");
+    }
+
+    if ($this->varNesting) {
+      $names = join(', ', array_map(function ($set) {
+        return "\$$set[type]$set[var]";
+      }, $this->varNesting));
+
+      $this->warning("Unterminated $names.");
     }
 
     if ($this->config->grabFinalVars) {
@@ -242,6 +249,13 @@ class Compiler extends Configurable {
           $attributes = join(', ', $attributes);
           $code = "\${$self}->setTagAttribute('$tag', '$var', [$attributes])";
         } elseif ($value === '') {    // $=multilinestart
+          foreach ($this->varNesting as $set) {
+            if ($set['var'] === $var) {
+              $this->warning("Opening $=$var inside another $=$var.");
+              break;
+            }
+          }
+          $this->varNesting[] = compact('type', 'var');
           $code = 'ob_start()';
         } else {      // $=singleline assign
           $value = rtrim($value, ';');
@@ -257,6 +271,7 @@ class Compiler extends Configurable {
                 "\${$self}->markAsCompartments(['$var']);";
 
         if ($value === '') {
+          $this->checkVarNesting(array_pop($this->varNesting), $type, $var);
           // Add new item to the compartment:
           //   $=var
           //   ...
@@ -289,6 +304,7 @@ class Compiler extends Configurable {
         }       
         // $*multilineassign&echo $^multilineassign
         if ($value === '') {
+          $this->checkVarNesting(array_pop($this->varNesting), $type, $var);
           $func = $type === '^' ? 'clean' : 'flush';
           $code = "$$var = ob_get_$func()";
         }
@@ -296,6 +312,15 @@ class Compiler extends Configurable {
     }
 
     return $this->rawPhp($code, $head.$body).$eoln;
+  }
+
+  protected function checkVarNesting($last, $type, $var) {
+    if (!$last) {
+      $op = $tag === '' ? join('/', $this->config->loopTags) : $tag;
+      $this->warning("No matching opening $=$var for \${$type}$var.", HTMLki::WARN_COMPILE + 4);
+    } elseif ($last['var'] !== $var) {
+      $this->warning("Opening $=$last[var]'s name mismatches \${$type}$var's, using $$var.", HTMLki::WARN_COMPILE + 5);
+    }
   }
 
   protected function match_input($src, $var, $tag, $value) {
