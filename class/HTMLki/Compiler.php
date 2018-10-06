@@ -90,11 +90,20 @@ class Compiler extends Configurable {
 
     if ($this->config->grabFinalVars) {
       $self = $this->config->selfVar;
-      $which = $this->config->grabFinalVars === 'compartment' 
-        ? "compact(\${$self}->getCompartmentVarNames())"
-        : 'get_defined_vars()';
-      $code = "\${$self}->vars($which)";
-      $str .= $this->rawPhp($code);
+      if ($this->config->grabFinalVars === 'compartment') {
+        $code = "addVars(compact(\${$self}->getCompartmentVarNames()))";
+      } else {
+        // $_vars from Template->evaluate().
+        $skip = array_map(function ($var) {
+          return "'{$this->quote($var)}' => true,";
+        }, [$self, '_vars']);
+        $code = 'vars(array_filter(get_defined_vars(), function ($k) {'.
+                '  static $skip = ['.join($skip).'];'.
+                // match_tags().
+                '  return strncmp($k, "_i0", 3) and !isset($skip[$k]);'.
+                '}, ARRAY_FILTER_USE_KEY))';
+      }
+      $str .= $this->rawPhp("\${$self}->$code");
     }
 
     $str = strtr($str, $this->raw);
@@ -294,7 +303,8 @@ class Compiler extends Configurable {
         break;
 
       case '#':   // $#config 
-        $code = "\${$self}->config()->$var = $codeValue";
+        $tag = $this->quote(substr($tag, 1));
+        $code = "\${$self}->setConfig('$tag', '$var', $codeValue)";
         break;
 
       case '^':       // $^multilineassign

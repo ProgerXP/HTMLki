@@ -5,8 +5,8 @@
 // form.
 interface TemplateEnv {
   function setTagAttribute($tag, $key, array $attributes = []);
-  //= object
-  function config();
+  // $config is '' for Configurable->config().
+  function setConfig($config, $key, $value);
   //= string
   function escape($str);
   function input(array $vars, $var, &$value, $type, $coercible, $default = null, $cond = '');
@@ -19,5 +19,6 @@ interface TemplateEnv {
 
   function getCompartmentVarNames();
   function vars(array $vars);
+  function addVars(array $vars);
   function markAsCompartments(array $vars);
 }

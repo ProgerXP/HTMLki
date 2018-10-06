@@ -150,6 +150,17 @@ class Template extends Configurable
     return strtr($email, $replaces);
   }
 
+  function setConfig($config, $key, $value) {
+    if (!strlen($config)) {
+      $this->config->$key = $value;
+    } elseif (!$this->config->otherConfig) {
+      $this->warning("Cannot set $config->$key - no \$otherConfig config handler set.", HTMLki::WARN_TAG + 6);
+    } else {
+      call_user_func($this->config->otherConfig, $config, $key, $value);
+    }
+    return $this;
+  }
+
   //= string
   function render() {
     return $this->evaluate($this->vars);

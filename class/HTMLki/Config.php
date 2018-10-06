@@ -68,10 +68,10 @@ class Config {
   // extract. Tags with <t $list>, $loopTags and <$var> tags are always extracted.
   public $extractTags = ['include'];
 
-  // If true collects actual variable state before returning from the template
-  // (can pollute it with many temporary variables); can be retrieved with
-  // vars() as usual. If 'compartment' collects only marked compartment
-  // variables. If false doesn't collect any.
+  // If true collects actual variable state before returning from the template;
+  // unset ones are also unset; can be retrieved with vars() as usual. If
+  // 'compartment' collects only marked compartment variables. If false doesn't
+  // collect any.
   public $grabFinalVars = 'compartment';
 
   // Format is like $extractTags. Control if tags that are not looping, branching,
@@ -313,6 +313,11 @@ class Config {
 
   //= callable ($name, Template $tpl)
   public $listVariable;
+
+  // Used with the  $#key@config value  construct. $#key[@] always sets
+  // Template->config()->$key.
+  //= callable ($config, $key, $value)
+  public $otherConfig;
 
   function __construct(array $options = null) {
     $options and $this->assign($options);
