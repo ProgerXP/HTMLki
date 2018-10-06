@@ -156,7 +156,7 @@ class Template extends Configurable
     } elseif (!$this->config->otherConfig) {
       $this->warning("Cannot set $config->$key - no \$otherConfig config handler set.", HTMLki::WARN_TAG + 6);
     } else {
-      call_user_func($this->config->otherConfig, $config, $key, $value);
+      call_user_func($this->config->otherConfig, $config, $key, $value, $this);
     }
     return $this;
   }
@@ -266,7 +266,7 @@ class Template extends Configurable
       $placeholders = $this->placeholders($values);
 
       $str = str_replace(array_keys($values), $placeholders, $str);
-      $str = call_user_func($func, $str);
+      $str = call_user_func($func, $str, $this);
       return str_replace($placeholders, $values, $str);
     } else {
       return strtr($str, $values);
@@ -549,7 +549,7 @@ class Template extends Configurable
       $call->attributes = $this->evaluateWrapped($call->vars, $call->attributes);
       $call->values = $this->evaluateWrapped($call->vars, $call->values);
 
-      $result = call_user_func($handler, $call, $this);
+      $result = call_user_func($handler, $call);
     }
 
     return is_array($result) ? $result : [];
@@ -885,7 +885,7 @@ class Template extends Configurable
         $call->vars = $this->makeIncludeVars($call);
       }
 
-      $tpl = $file = call_user_func($func, $call->defaults[0], $call, $this);
+      $tpl = $file = call_user_func($func, $call->defaults[0], $call);
 
       if (is_string($tpl)) {
         $config = $this->config->inheritConfig ? 'config' : 'originalConfig';

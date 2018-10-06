@@ -150,7 +150,7 @@ class Config {
   //   array( 'tag'[, 'attr' => 'v a l u e'[, 'a2' => 'v2', ...]] ).
   //   Note that if 'tag' starts with a capital letter or is an object
   //   this is considered a callable (see below).
-  // * string => callable - function (TagCall $tag, Template $this)
+  // * string => callable - function (TagCall $tag)
   //
   // Aliases are resolved recursively; attributes are set after each iteration
   // so you can create multiple aliases and their attributes will be set
@@ -303,12 +303,12 @@ class Config {
   //= hash of hash of callable ($value, TagCall $call)
   public $attributes = [];
 
-  //= callable ($str, array $format)
+  //= callable ($str, array $format, Template $this)
   public $language;
 
   // Returns string (path to the compiled template) or an IncludeTemplate (with
   // set $call->vars).
-  //= callable ($template, TagCall $call, Template $parent).
+  //= callable ($template, TagCall $call).
   public $template;
 
   //= callable ($name, Template $tpl)
@@ -316,7 +316,7 @@ class Config {
 
   // Used with the  $#key@config value  construct. $#key[@] always sets
   // Template->config()->$key.
-  //= callable ($config, $key, $value)
+  //= callable ($config, $key, $value, Template $this)
   public $otherConfig;
 
   function __construct(array $options = null) {

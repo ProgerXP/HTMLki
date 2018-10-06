@@ -35,6 +35,10 @@ class TagCall {
     return $this->tpl->config();
   }
 
+  function originalConfig() {
+    return $this->tpl->originalConfig();
+  }
+
   function call($tag) {
     $call = clone $this;
     $call->tag = $tag;
@@ -110,5 +114,16 @@ class TagCall {
     }
 
     return $result;
+  }
+
+  // Doesn't expand the values, process wrappers, add default ones, join enum
+  // tags, etc. Should be only used when $attributes were expanded or wrappers
+  // are not important.
+  function attributeMap() {
+    $attr = [];
+    foreach (array_reverse($this->attributes) as $attr) {
+      $attr += [$attr[1] => $attr[3]];
+    }
+    return $attr;
   }
 }
