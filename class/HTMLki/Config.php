@@ -133,6 +133,9 @@ class Config {
   //= string appended to the evaluating string expression. See ->compiledFooter.
   public $evalSuffix = '';
 
+  //= hash of var=>value used in all file/string eval contexts
+  public $commonVars = [];
+
   // Prior to PHP 7, syntax errors in eval() cannot be caught; the only indication
   // is eval() returning false and "Parse error: ..." present in the output.
   // Both conditions can happen in normal operation so it's unreliable but useful

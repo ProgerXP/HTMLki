@@ -28,7 +28,7 @@ class IncludeProxy implements IncludeTemplate {
 
   function render() {
     list($content, $this->returnCompartments) = 
-      $this->renderer($this->vars, array_keys($this->compartmentVars));
+      ($this->renderer)($this->vars, array_keys($this->compartmentVars));
     return $content;
   }
 

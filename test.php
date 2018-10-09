@@ -192,7 +192,7 @@ VARS;
         <button type="submit">Render</button>
         <button type="submit" name="compile" value="1">Compile only/see warnings</button>
         Also <b>Ctrl/Shift/Alt+Enter</b>.
-        <a href="<?=esc($_SERVER['SCRIPT_NAME'])?>">Reset the form</a>.
+        <a href="<?=esc(strtok($_SERVER['REQUEST_URI'], '?'))?>">Reset the form</a>.
       </p>
     </form>
 

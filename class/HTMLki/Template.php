@@ -168,6 +168,7 @@ class Template extends Configurable
 
   protected function evaluate(array $_vars) {
     extract($_vars, EXTR_SKIP);
+    extract($this->config->commonVars, EXTR_SKIP);
     ${$this->config->selfVar} = $this;
 
     ob_start();
@@ -192,6 +193,7 @@ class Template extends Configurable
     }
 
     extract($_vars, EXTR_SKIP);
+    extract($this->config->commonVars, EXTR_SKIP);
     // "Before PHP 7, in this case eval() returned FALSE and execution of the
     // following code continued normally. It is not possible to catch a parse
     // error in eval() using set_error_handler()."
