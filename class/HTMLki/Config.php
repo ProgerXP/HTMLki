@@ -14,21 +14,31 @@ class Config {
   // Must match on compile and rendering times.
   public $selfVar = '_ki';
 
+  // Format is like $extractTags. Allows to reduce the page size, sometimes
+  // significantly. Only enable when $xhtml is off as it uses HTML 5-specific
+  // rules:
+  // https://www.w3.org/TR/html5/syntax.html#optional-tags
+  public $relaxStartTags = [];
+  public $relaxEndTags = [];
+
   /*-----------------------------------------------------------------------
   | COMPILER-SPECIFIC
   |----------------------------------------------------------------------*/
 
   // Listed here compilers will be called unless also listed in $omitCompilers.
   public $compilers = ['lineMerge', 'php', 'varSet', 'tags', 'echo',
-                        'lang', 'varEcho'];
+                       'lang', 'varEcho', 'compact'];
 
   // Two options (this and above) exist for easier overriding. Listed here but
   // not in $compilers cause nothing.
   //
-  // 'lang' is disabled by default. It treats "quoted" text as language strings.
-  // If enabled be prepared that   This "is" text   would turn into   This is text
-  // (quotes are gone since "is" was "translated" into itself with no $language
-  // callback set). Also controls ""escaping"".
+  // 'lang' is disabled by default. It treats "quoted" text as language strings
+  // which is very convenient if you are using translation but will get in a
+  // way if not.
+  //
+  // If lang is enabled be prepared that   This "is" text   would turn into   
+  // This is text  (quotes are gone since "is" was "translated" into itself
+  // with no $language callback set). Also controls ""escaping"".
   public $omitCompilers = ['lang'];
 
   // If enabled tags start <start and end> on different lines are parsed and
@@ -37,7 +47,9 @@ class Config {
   //   if (s.match(/<a /)) { (ln) s += '>'
   public $multilineTags = false;
 
-  // Non-single tags when used as <... /> get expanded to <...></...>. Single tags don't require '/' making <...> the same as <... /> (like <br> = <br /> in HTML 5).
+  // Non-single tags when used as <... /> get expanded to <...></...>. Single
+  // tags don't require '/' making <...> the same as <... /> (like <br> = 
+  // <br /> in HTML 5).
   public $singleTags = ['area', 'base', 'basefont', 'br', 'col', 'frame',
                         'hr', 'img', 'input', 'link', 'meta', 'param',
                         'lang', 'include', 'rinclude'];
@@ -79,6 +91,8 @@ class Config {
   // If either is enabled you can no more track opening/closing tags with hooks
   // because they are output as raw text which is good for performance. Precise
   // tracking only makes sense if using custom tags or other advanced HTMLki stuff.
+  // If a tag is about to be output raw, $relax...Tags setting determines if it
+  // is output or not.
   public $rawStartTags = true;
   public $rawEndTags = true;
 
@@ -160,7 +174,8 @@ class Config {
   // (later aliases do not override attributes that already exist).
   //
   // Unlisted tags are handled by Template or its default tag method.
-  // If $rawStartTags/$rawEndTags are used this setting is used on compile-time.
+  // If $rawStartTags/$rawEndTags are used then this setting is accessed on
+  // both compile-time and render, else on render only.
   public $tags = [
     'password' => 'input type=password',  'hidden' => 'input type=hidden',
     'file' => 'input type=file',          'check' => 'input type=checkbox',
@@ -225,6 +240,8 @@ class Config {
   public $enumAttributes = [
     ''          => ['class' => ' '],
     'a'         => ['rel' => ' '],
+    'link'      => ['integrity' => ' '],
+    'script'    => ['integrity' => ' '],
   ];
 
   //= hash of array of string attribute names
@@ -386,5 +403,29 @@ class Config {
 
     $hook and $value = call_user_func($hook, $value, $this);
     return $value;
+  }
+
+  // This list assumes that the position of comment nodes and whitespace is not
+  // important and that the document itself is a conformant HTML 5 (proper
+  // nesting, usage of tags in proper contexts, etc.).
+  //
+  // https://www.w3.org/TR/html5/syntax.html#optional-tags
+  function relaxTags() {
+    // Not omitting <body> due to an ambiguity if <head> </head> are omitted
+    // and <body> starts with <script> or other tag that could also appear in
+    // <head>: 
+    // "A body element’s start tag may be omitted if [...], except if the first
+    // thing inside the body element is a meta, link, script, style, or
+    // template element."
+    $this->relaxStartTags = ['html', 'head'];
+    // Not omitting <p> and a few others due to a similar ambiguity as <body>.
+    $this->relaxEndTags = [
+      'html', 'head', 'body', 'li', 'dt', 'dd', 'rt', 'rp', 'option',
+      'colgroup', 'caption', 'tr', 'td', 'th',
+    ];
+  }
+
+  function isIdentifier($str) {
+    return strlen($str) and ltrim($str, 'a..zA..Z0..9_') === '';
   }
 }

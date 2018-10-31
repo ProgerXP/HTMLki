@@ -163,7 +163,16 @@ class Template extends Configurable
 
   //= string
   function render() {
-    return $this->evaluate($this->vars);
+    $level = ob_get_level();
+    try {
+      return $this->evaluate($this->vars);
+    } finally {
+      // Treat each template as a standalone unit that shouldn't leave unclosed
+      // state (e.g. output buffering) on return. Extra output buffers might be
+      // left due to an exception occurring between ob_start() and ob_...() or
+      // due to a badly written filter.
+      while ($level-- > ob_get_level()) { ob_end_clean(); }
+    }
   }
 
   protected function evaluate(array $_vars) {
@@ -244,10 +253,10 @@ class Template extends Configurable
     } else {
       $code = substr($code, 0, -1);
 
-      $escaped = (!$this->escapeExpr or $code[0] === '=');
+      $escaped = (!$escapeExpr or $code[0] === '=');
       $code[0] === '=' and $code = substr($code, 1);
 
-      $value = $this->evaluateStr($code, $this->vars + $this->vars);
+      $value = $this->evaluateStr($code, $vars + $this->vars);
       $escaped or $value = $this->escape($value);
       return $value;
     }
@@ -255,7 +264,14 @@ class Template extends Configurable
 
   function formatStr($str, array &$vars) {
     list($str, $values) = $this->parseStr($str, $vars);
-    return strtr($str, $values);
+    if (count($values) === 1 and $str === array_keys($values)[0]) {
+      // <a { array_keys($attr) }=val> -> <a key1=val key2=val ...>
+      // If $str is exactly one substitution, returning this value as is to
+      // allow for non-scalar result which can be useful to the caller.
+      return array_shift($values);
+    } else {
+      return strtr($str, $values);
+    }
   }
 
   function lang($str, array $vars = [], $escapeExpr = true) {
@@ -379,14 +395,16 @@ class Template extends Configurable
 
   // * $params string
   // = TagCall
-  function parseParams($params, array $vars) {
+  protected function parseParams($tag, $params, array $vars) {
     $call = new TagCall;
     $call->tpl = $this;
+    $call->tag = $tag;
 
     $call->raw = $params = trim($params);
+    $isLoopTag = in_array($call->tag, $this->config->loopTags);
 
     while ($params !== '') {
-      if ($params[0] === '$') {
+      if ($params[0] === '$' and ($isLoopTag or !$call->defaults)) {
         // <tag ${list...} params...>
         list($list, $params) = HTMLki::split(' ', substr($params, 1));
 
@@ -399,6 +417,10 @@ class Template extends Configurable
             $list .= $ch;
             $params = substr($params, 1);
           }
+        } elseif (strrchr($list, '=')) {
+          // <tag $foo=123> is not a loop tag but a <tag a=123 b=123 ...>.
+          $params = rtrim("$$list $params");
+          break;
         }
 
         $call->lists[] = $list;
@@ -407,9 +429,14 @@ class Template extends Configurable
       } elseif ($params[0] === '"') {
         list($default, $rest) = explode('"', substr($params, 1), 2);
 
+        // <a =$attrs> -> <a attr=val a2=val ...>
+        // <a "" $attrs> is similar but 1) won't work if 'a' is in $loopTags,
+        // 2) will add an empty 'href'.
         if ($rest === '' or $rest[0] !== '=') {
-          $call->defaults[] = $this->formatStr($default, $vars);
+          $call->defaults[] = ['"', "\"$default\""];
           $params = ltrim($rest);
+          // Parse additional "defaults" but not $lists ($defaults no more
+          // empty) unless $isLoopTag. 
           continue;
         }
       }
@@ -475,18 +502,16 @@ class Template extends Configurable
   }
 
   function startTag($tag, $params = '', array $vars = []) {
-    $call = $this->parseParams($params, $vars);
+    $call = $this->parseParams($tag, $params, $vars);
 
-    $call->tag = $tag;
     $call->vars = $vars;
 
     return $this->callTag($call);
   }
 
   function endTag($tag, $params = '', array $vars = []) {
-    $call = $this->parseParams($params, $vars);
+    $call = $this->parseParams($tag, $params, $vars);
 
-    $call->tag = $tag;
     $call->vars = $vars;
     $call->isEnd = true;
 
@@ -494,9 +519,8 @@ class Template extends Configurable
   }
 
   function singleTag($tag, $params = '', array $vars = []) {
-    $call = $this->parseParams($params, $vars);
+    $call = $this->parseParams($tag, $params, $vars);
 
-    $call->tag = $tag;
     $call->vars = $vars;
     $call->isEnd = true;
     $call->isSingle = true;
@@ -548,9 +572,7 @@ class Template extends Configurable
 
       $result = null;
     } else {
-      $call->attributes = $this->evaluateWrapped($call->vars, $call->attributes);
-      $call->values = $this->evaluateWrapped($call->vars, $call->values);
-
+      $call->evaluateAllWrapped();
       $result = call_user_func($handler, $call);
     }
 
@@ -579,7 +601,7 @@ class Template extends Configurable
     $tags = array_filter( is_array($tags) ? $tags : explode('/', $tags) );
 
     if ($call->isEnd) {
-      foreach ($tags as $tag) { echo "</$tag>"; }
+      foreach ($tags as $tag) { echo $this->htmlEndTag($tag); }
     } else {
       $call = clone $call;
       $call->clear();
@@ -681,20 +703,10 @@ class Template extends Configurable
           // where extract() adds iteration variables to common pool; this means we
           // should add already defined variables in the template's scope manually:
           $vars += $call->vars;
-
-          foreach ($call->defaults as &$s) {
-            $s = $this->evaluateWrapped($vars, '', $s);
-          }
-
-          $call->attributes = $this->evaluateWrapped($vars, $call->attributes);
-          $call->values = $this->evaluateWrapped($vars, $call->values);
-
+          $call->evaluateAllWrapped($vars);
           echo $this->htmlTagOf($call, $call->tag);
         });
       } else {
-        $call->attributes = $this->evaluateWrapped($call->vars, $call->attributes);
-        $call->values = $this->evaluateWrapped($call->vars, $call->values);
-
         echo $this->htmlTagOf($call, $tag);
       }
     } elseif ($call->isEnd) {
@@ -704,7 +716,7 @@ class Template extends Configurable
         $this->warning("</$tag> form cannot be called with list data: [$lists].", HTMLki::WARN_RENDER + 3);
       }
 
-      echo "</$tag>";
+      echo $this->htmlEndTag($tag);
     } elseif ($call->lists) {  // <...>
       $allVars = [];
 
@@ -713,21 +725,15 @@ class Template extends Configurable
       });
 
       if ($allVars) {
-        $call->attributes = $this->evaluateWrapped($call->vars, $call->attributes);
-        $call->values = $this->evaluateWrapped($call->vars, $call->values);
-
         echo $this->htmlTagOf($call, $tag);
       }
 
       return $allVars;
     } else {
-      $call->attributes = $this->evaluateWrapped($call->vars, $call->attributes);
-      $call->values = $this->evaluateWrapped($call->vars, $call->values);
-
       echo $this->htmlTagOf($call, $tag);
     }
 
-    if ($isCollapsed) { echo "</$tag>"; }
+    if ($isCollapsed) { echo $this->htmlEndTag($tag); }
   }
 
   // $listNameVars is only used to evaluate list name, not passing to $callback.
@@ -760,7 +766,7 @@ class Template extends Configurable
 
           if (is_array($item)) {
             foreach ($item as $key => $value) {
-              $vars[$prefix.$key] = $value;
+              $vars += [$prefix.$key => $value];
             }
           }
 
@@ -779,6 +785,10 @@ class Template extends Configurable
 
   // = string HTML
   function htmlTag($tag, array $attributes = [], $isSingle = false) {
+    $list = $this->config->relaxStartTags;
+    if (!$attributes and ($list === true or in_array($tag, $list))) {
+      return '';
+    }
     $end = ($isSingle and $this->config->xhtml) ? ' /' : '';
     $attributes = $this->htmlAttributes($attributes);
     return "<$tag$attributes$end>";
@@ -787,10 +797,22 @@ class Template extends Configurable
   function htmlAttribute($str, $trim = true) {
     $trim and $str = trim($str);
 
-    if (strrchr($str, '"') === false) {
+    if (!$this->config->xhtml and strlen($str) and 
+        strpbrk($str, " \t\n\f\r\"'=<>`") === false) {
+      // Unquoted attribute value syntax:
+      // https://www.w3.org/TR/html5/syntax.html#attributes
+      return $this->escape($str);
+    } elseif (strrchr($str, '"') === false) {
       return '"'.$this->escape($str).'"';
     } else {
       return '\''.str_replace("'", '&#039;', $this->escape($str, ENT_NOQUOTES)).'\'';
+    }
+  }
+
+  function htmlEndTag($tag) {
+    $list = $this->config->relaxEndTags;
+    if ($list !== true and !in_array($tag, $list)) {
+      return "</$tag>";
     }
   }
 
@@ -808,7 +830,14 @@ class Template extends Configurable
     $result = '';
 
     foreach ($attributes as $name => $value) {
-      $result .= ' '.$this->escape(trim($name)).'='.$this->htmlAttribute(trim($value));
+      $result .= ' '.$this->escape(trim($name));
+      $value = trim($value);
+
+      // HTML 5 allows empty attribute syntax:
+      // https://www.w3.org/TR/html5/syntax.html#attributes
+      if (strlen($value) or $this->config->xhtml) {
+        $result .= '='.$this->htmlAttribute($value);
+      }
     }
 
     return $result;
@@ -832,23 +861,25 @@ class Template extends Configurable
       return $this->formatStr(substr($value, 1, -1), $vars);
     } elseif ($wrapper !== '') {
       $this->error("evaluateWrapped() received invalid \$wrapper '$wrapper'.");
-    } else {                        // <a some> 
-      if (substr($value, 0, 1) === '$' and substr($value, -1) === '?') {
-        // <a class=$current? class=nav> -> <a class="[current ]nav">
-        $varName = substr($value, 1, -1);
-        if ($varName and ltrim($varName, 'a..zA..Z0..9_') === '') {
-          return $this->formatStr("$$varName", $vars) ? $varName : null;
-        }
-      }
+    } elseif (strncmp($value, '$', 1)) {
       return $this->formatStr($value, $vars);
+    } else {    // <a some>   // <a so$me> 
+      if (substr($value, -1) === '?' and
+          $this->config->isIdentifier($varName = substr($value, 1, -1))) {
+        // <a class=$current? class=nav> -> <a class="[current ]nav">
+        return (empty($vars[$varName]) and empty($this[$varName]))
+          ? null : $varName;
+      } else {
+        return $this->formatStr($value, $vars);
+      }
     }
   }
 
-  protected function tag_rinclude($call) {
+  function tag_rinclude($call) {
     return $this->tag_include($call);
   }
 
-  protected function tag_include($call) {
+  function tag_include($call) {
     $func = $this->config->template;
 
     if (!$func) {
@@ -857,6 +888,8 @@ class Template extends Configurable
       $this->warning("Cannot <$call->tag> a template - no \"name\" given.", HTMLki::WARN_TAG + 2);
     } else {
       $listNameVars = $call->vars;
+      // Needed for makeIncludeVars().
+      $call->evaluateAllWrapped();
 
       if (!$call->values and !$call->attributes) {
         $call->vars += $this->vars;
@@ -959,8 +992,6 @@ class Template extends Configurable
   }
 
   protected function makeIncludeVars($call, $firstValue = 0) {
-    $values = $this->evaluateWrapped($call->vars, $call->values);
-    $attrs = $this->evaluateWrapped($call->vars, $call->attributes);
     $vars = [];
 
     foreach ($values as $value) {
@@ -985,7 +1016,7 @@ class Template extends Configurable
     return $vars;
   }
 
-  protected function tag_each($call) {
+  function tag_each($call) {
     if (!$call->isEnd) {
       if ($call->lists) {
         $allVars = [];
@@ -1009,18 +1040,20 @@ class Template extends Configurable
     }
   }
 
-  protected function tag_if($call) {
+  function tag_if($call) {
     if (!$call->isEnd) {
       $holds = $this->evaluateStr($call->raw, $call->vars);
       return $holds ? [[]] : [];
     }
   }
 
-  protected function tag_lang($call) {
-    $vars = $call->vars + $this->evaluateWrapped($call->vars, $call->attributes);
+  function tag_lang($call) {
+    $call->evaluateAllWrapped();
+    $vars = $call->vars + array_map(function ($item) { return end($item); }, $call->attributes);
 
     foreach ($call->defaults as $lang) {
-      $values = $this->evaluateWrapped($call->vars, $call->values);
+      $lang = end($lang);
+      $values = $call->values;
 
       if ($values) {
         foreach ($values as &$ref) { $ref = end($ref); }
@@ -1031,12 +1064,14 @@ class Template extends Configurable
     }
   }
 
-  protected function tag_mailto($call) {
+  function tag_mailto($call) {
     if ($call->isEnd and !$call->isSingle) {
       echo '</a>';
     } else {
-      $email = reset($call->defaults);
-      echo '<a href="'.$this->mailto($email, next($call->defaults)).'">';
+      $call->defaults = $this->evaluateWrapped($call->vars, $call->defaults);
+      $def = $call->defaults + [[], ['', null]];
+      $email = $def[0][1];
+      echo '<a href="'.$this->mailto($email, $def[1][1]).'">';
 
       if ($call->isSingle) { echo $this->email($email), '</a>'; }
     }

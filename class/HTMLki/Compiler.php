@@ -275,11 +275,17 @@ class Compiler extends Configurable {
         break;
 
       case '+':    // $+compartment
+        $code = "\${$self}->markAsCompartments(['$var']);";
+
+        if ($tag === '@') {   // $+comp@
+          $code .= "$$var = [];";
+        } else {  // $+comp or $+comp@key
+          $code .= "isset($$var) or $$var = [];".
+                   "is_array($$var) or $$var = (array) $$var;";
+        }
+
         $tag = $this->quote(substr($tag, 1));
         strlen($tag) and $tag = "'$tag'";
-        $code = "isset($$var) or $$var = [];".
-                "is_array($$var) or $$var = (array) $$var;".
-                "\${$self}->markAsCompartments(['$var']);";
 
         if ($value === '') {
           $this->checkVarNesting(array_pop($this->varNesting), $type, $var);
@@ -293,7 +299,7 @@ class Compiler extends Configurable {
           // Process items in the compartment:
           //   <each $var> ... e.g. { join $item } </each>
           //   use  $>var@ array  to pre-create an optional compartment variable 
-          $code .= "ob_get_length() and \${$var}[$tag] = ob_get_clean();";
+          $code .= "ob_get_length() ? \${$var}[$tag] = ob_get_clean() : ob_end_clean();";
         } else {    // $+comp assign
           // Add:       $+var[@key] 123
           // Mark:      use the multiline form
@@ -460,7 +466,12 @@ class Compiler extends Configurable {
         and !$isSingle and !$isMultitag and !$isVariable and !$isDefault) {
       $list = $this->config->{$isEnd ? 'rawEndTags' : 'rawStartTags'};
       if ($list === true or in_array($tag, $list)) {
-        return $isEnd ? "</$tag>" : "<$tag>";
+        $list = $this->config->{$isEnd ? 'relaxEndTags' : 'relaxStartTags'};
+        if ($list === true or in_array($tag, $list)) {
+          return '';
+        } else {
+          return $isEnd ? "</$tag>" : "<$tag>";
+        }
       }
     }
 
@@ -564,7 +575,7 @@ class Compiler extends Configurable {
       $rubyCallRE = '~^([\w\\\\][\w:->\\\\]*)\s+(["\'$[\w].*)$~'.
                     $this->config->regexpMode;
 
-      if ($code !== '' and ltrim($code, 'a..zA..Z0..9_') === '' and
+      if ($this->config->isIdentifier($code) and
           ltrim($code[0], 'a..z_') === '') {
         $code = "$$code";
       } elseif ($this->config->rubyLike and
@@ -605,6 +616,19 @@ class Compiler extends Configurable {
     } else {
       $self = $this->config->selfVar;
       return $this->rawPhp("echo \${$self}->escape($$match[1])", $match[0]);
+    }
+  }
+
+  // Remove <!--comments--> and compress successive whitespace into one - this
+  // is generally safe, unlike removing whitespace completely which requires
+  // accurate knowledge about the context. 
+  protected function compile_compact(&$str) {
+    return $this->replacing(__FUNCTION__, '~(\s)*<!--.*?-->(\s)*|(\s)+~s', $str);
+  }
+
+  protected function match_compact($match) {
+    if (count($match) > 1) {
+      return end($match);
     }
   }
 }

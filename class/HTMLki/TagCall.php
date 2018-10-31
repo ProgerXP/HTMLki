@@ -4,7 +4,7 @@ class TagCall {
   public $raw;                //= string raw parameter string
 
   public $lists = [];         // list variable names without leading '$'
-  public $defaults = [];      // default attributes without wrapping quotes
+  public $defaults = [];      //= array of array('"', '"default attribute"')
   public $attributes = [];    //= array of array('keyWr', 'key', 'valueWr', 'value')
   public $values = [];        //= array of array('valueWr', string)
 
@@ -49,9 +49,17 @@ class TagCall {
     return call_user_func_array([$this->tpl, $name], $arguments);
   }
 
+  function evaluateAllWrapped(array $vars = null) {
+    isset($vars) or $vars = $this->vars;
+    $this->defaults = $this->tpl->evaluateWrapped($vars, $this->defaults);
+    $this->attributes = $this->tpl->evaluateWrapped($vars, $this->attributes);
+    $this->values = $this->tpl->evaluateWrapped($vars, $this->values);
+  }
+
   function attributes($config = null) {
     $config or $config = $this->tpl->config();
 
+    $this->evaluateAllWrapped();
     $attributes = $this->attributes;
     $defaults = $config->defaultAttributesOf($this->tag);
     $notEmpty = array_flip( $config->notEmptyAttributesOf($this->tag) );
@@ -60,18 +68,34 @@ class TagCall {
 
     $result = $config->defaultsOf($this->tag);
 
-    $values = $this->tpl->evaluateWrapped($this->vars, $this->values);
-    foreach ($values as &$ref) { $ref = end($ref); }
+    $values = array_map(function ($item) { return end($item); }, $this->values);
 
-    foreach ($this->defaults as $str) {
+    foreach ($this->defaults as $item) {
       $default = array_shift($defaults);
       if ($default) {
-        $result[$default] = $str;
+        $result[$default] = end($item);
       } else {
-        $values[] = $str;
+        // If there are no more configured default slots, add ->$defaults as
+        // just ->$values (attributes without key).
+        $values[] = end($item);
       }
     }
 
+    for ($i = count($values) - 1; $i >= 0; --$i) {
+      $item = $values[$i];
+      // <a { array_combine($k, $v) }> -> <a href="foo" class="bar" ...>
+      if (is_array($item)) {
+        $item = array_filter($item, function ($v, $k) use (&$attributes) {
+          if (is_int($k)) {
+            return true;
+          } else {
+            $attributes[] = ['-', $k, '-', $v];
+          }
+        }, ARRAY_FILTER_USE_BOTH);
+        array_splice($values, $i, 1, $item);
+      }
+    }
+    
     foreach ($values as $str) {
       $str = trim($str);
       $str === '' or $config->expandAttributeOf($this->tag, $str, $result);
@@ -84,11 +108,13 @@ class TagCall {
     foreach ($attributes as $attr) {
       list(, $name, , $value) = $attr;
 
-      if (!isset($enums[$name])) {   
-        $result[$name] = $value;
-      } elseif ($value) {   // loosely true - add to the set.
-        $present = isset($result[$name]);
-        $result[$name] = ($present ? $result[$name].$enums[$name] : '').$value;
+      foreach ((array) $name as $name) {
+        if (!isset($enums[$name])) {   
+          $result[$name] = $value;
+        } elseif ($value) {   // loosely true - add to the set.
+          $present = isset($result[$name]);
+          $result[$name] = ($present ? $result[$name].$enums[$name] : '').$value;
+        }
       }
     }
 
@@ -106,7 +132,7 @@ class TagCall {
         }
       } elseif (isset($flags[$name])) {
         if ($ref == true) {
-          $ref = $name;
+          $ref = $config->xhtml ? $name : '';
         } else {
           unset($result[$name]);
         }

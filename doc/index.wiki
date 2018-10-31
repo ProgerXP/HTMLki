@@ -524,7 +524,7 @@ The shortest form is just %%$>someVar%% setting **type** to %%any%% and omitting
     = integer also %%int%%, %%num%%; default is %%(php)0%%
     = float also %%double%%, %%real%%; default is %%(php)0.0%%
     = string also %%str%%; default is %%(php)''%%
-    = array also %%hash%%, %%map%%; default is %%(php)array()%%
+    = array also %%hash%%, %%map%%; default is %%(php)[]%%
     = object also %%obj%%; default is %%(php)new stdClass%%
     = callable note that not only closures are callable but also things like %%(php)'trim'%%, %%(php)['My', 'method']%% and %%(php)$obj%% (if implements %%(php)__invoke()%%)
     = resource also %%res%%
@@ -548,7 +548,7 @@ Other types and other cases of the listed types are not coercible and fail the i
 ==== $+compartment ==
 Compartments are regular variables that are automatically passed between connected templates while accumulating values. Typical examples are "styles" and "scripts" on a webpage - one template may add the styles it depends on, another template - another set of styles until the final template outputs these compartments to the appropriate places on the page (%%(html)<head>%% and %%(html)<body>%%).
 
-A compartment variable is defined using a syntax similar to ((#multi))-line assignment, terminating with a %%$+var@key%% line. If %%key%% is set %%(php)$var%% gets at most one entry per that %%key%%. %%(php)$var%% is automatically created as or converted to an array.
+A compartment variable is defined using a syntax similar to ((#multi))-line assignment, terminating with a %%$+var@key%% line. If %%key%% is set %%(php)$var%% gets at most one entry per that %%key%%. A special blank %%key%% clears old values. %%(php)$var%% is automatically created as or converted to an array.
 
 Two main ((#func functions)) power this mechanism: 
 
@@ -559,11 +559,15 @@ Two main ((#func functions)) power this mechanism:
 %%(html)
   $=head
   $+head
+
+  $=head
+  $+head@
 %%
 
 Roughly equivalent to this PHP 7.0+ code:
 %%(php)
   $head = (array) $head ?? [];
+  $head = [];   // but unlike $=head [], also declares $head as a compartment.
 %%
 
 ===== Example ==
@@ -616,20 +620,37 @@ The %%outer%% template might start with this snippet:
 
 The ((#input)) checking line is optional and enforces %%(php)$head%%'s type as well as sets its default value (empty array).
 
+The %%$+var@%% form is useful to wrap a compartment's contents before passing it to another template:
+%%(html)
+  $=body
+    <div id="content">
+      <!-- $body is expected to exist and be an array -->
+      {= join $body }
+    </div>
+  $+body@
+
+  <rinclude "complete-page">
+%%
+
+If %%$^var%% was used %%$body%% would become a string leading to type errors (array expected by the likely %%join($body)%% in %%complete-page%%).
+
 ===== ((#sincomp)) Single-line ==
 Single-line form without opening %%$=var%% can be used to add/set an array's member:
 %%(html)
   $+scripts 'jquery-2000.js'
   $+styles@print 'media-print.css'
+  $+messages@ 'Old messages: '.join(', ', $messages)
 %%
 
 Equivalent to:
 %%(php)
-  $scripts = array_merge($scripts ?? [], ['jquery-2000.js']);
-  $styles  = array_merge($styles ?? [],  ['print' => 'media-print.css']);
+  $scripts  = array_merge($scripts ?? [],  ['jquery-2000.js']);
+  $styles   = array_merge($styles ?? [],   ['print' => 'media-print.css']);
+  $messages = array_merge($messages ?? [], 
+                          ['Old messages: '.join(', ', $messages)]);
 %%
 
-This is unlike regular ((#variable)) assignment which replaces the entire variable: %%(php)$=array 'value'%% equals %%(php)$array = 'value'%%.
+This form is unlike regular ((#variable)) assignment which replaces the entire variable: %%(php)$=array 'value'%% equals %%(php)$array = 'value'%%.
 
 ==== $#configuration ==
 This construct is used to change the templater's runtime configuration. It's similar to creating tag ((#attr attributes)) but works with any option (see %%(php)HTMLki\Config%% class).
@@ -757,6 +778,8 @@ HTMLki extends HTML format for specifying tag attributes (%%(html)attr="value" s
     * %%(html)<input value=$obj->prop>%% - same as %%(php)<input value="<?=$obj-?>">prop>%%. Correct: %%(html)<input value={ $obj->prop }>%% or %%(html)<input value="{ $obj->prop } and foo">%%.
     * %%(html)<input value=$a['k']>%% - same as %%(php)<input value="<?=$a?>['k']">%%. Correct: %%(html)<input value={ $a['k'] }>%% or %%(html)<input value="{ $a['k'] } and foo">%% (but not %%(html)value="$a[k]"%% or %%(html)value="$a['k']"%% as these are not PHP strings).
     * special case: //value// of form %%$identifier?%% as in %%(html)<a class=$cur?>%% becomes %%identifier%% if it's loosely true, otherwise null; mostly useful for ((#enumattr enumeration attributes)) like %%class%%. 
+  1. If an unnamed attribute's value is an array it's expanded: %%(html)<a "url" $extra>%% becomes %%(html)<a href="url" class="c" target="_blank">%% if %%(php)$extra%% is %%(php)['class' => 'c', 'target' => '_blank']%%. **Warning:** %%(html)<a $extra>%% is treated as a loop tag; use: %%(html)<a =$extra>%% (read above for %%=value%% syntax).
+  1. If a **key** is an array multiple attributes are created with the same value: %%(html)<input { ['autocomplete', 'autocorrect'] }=off>%%.
 
 **Note:** HTML characters are ((#brackets escaped)) in substitutions. See also ((#attr tag attribute expansion)).
 
@@ -1061,7 +1084,7 @@ The following variables are defined after the loop has started iterating:
   * **$isFirst_//prefix//**, **$isLast_//prefix//** - boolean variables indicating if current iteration is a first/last one.
   * **$isEven_//prefix//** (0th, 2nd, 4th, etc.),, **$isOdd_//prefix//** (1st, 3rd, 5th, etc.) - one of these boolean variables will be true on any iteration.
   * **$item_//prefix//** - current item as it is - it can be of any type.
-  * if current item is **an array** all of its members are defined as if they were [[php:extract]]()'ed with added //prefix//; those that have wrong keys for this are still accessible using **%item**.
+  * if current item is **an array** all of its members are defined as if they were [[php:extract]]()'ed with added //prefix// (preserving standard variables above); those with wrong keys (non-identifiers or like standard) are still accessible via **$item**.
 
 //((#Prefix))// above stands for a string given to the tag along with the loop expression/variable. If it's empty then no separating underscore (%%_%%) is present.
 
@@ -1152,18 +1175,18 @@ HTMLki errors if opening tag doesn't match %%(html)<endXXX>%% tag (no such check
 ==== ((#sl)) Single-tag loops ==
 Sometimes it's convenient to ((#loop+s)) over a single tag instead of a ((#bl block)). Let's assume that we have an array of stylesheets:
 %%(php)
-  array(
+  [
     'screen' => 'styles.css',
     'print' => 'print.css',
-  );
+  ];
 %%
 
 We can output them all using this line:
 %%(html)
-  <link $styles "$item" rel=$key_styles />
+  <link $styles "$item" media=$key />
 %%
 
-//Even though this looks like a XHTML tag the presence of trailing %%/%% is controlled by HTMLki and can be enabled or disabled using its preferences without affecting the original template.//
+Trailing %%/%% is optional; it makes the single-tag nature of the loop more obvious to the (human) reader.
 
 ==== ((#bl)) Block loops ==
 Unlike ((#sl single-tag loops)) block loops operate on an arbitrary chunk of code wrapped into %%(html)<tag>...</endtag>%% pair. ((#lv Regular variables)) are defined both inside these blocks and after them, although the latter should be considered an undesirable side-effect and might be changed in future.
@@ -1227,7 +1250,7 @@ You can still write regular HTML if you want which is equivalent to the code abo
 
 Example of setting a non-scalar using a temporary variable (%%my/tpl%% gets %%(php)$theNameInside%%):
 %%(html)
-  $=a   array(1, 2, 3)
+  $=a   [1, 2, 3]
   <include "my/tpl" a-theNameInside>
 %%
 
